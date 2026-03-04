@@ -1,4 +1,5 @@
 langchain
 langgraph
+langgraph-checkpoint-sqlite
 langchain-openai
 dotenv
