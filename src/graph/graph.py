@@ -91,20 +91,9 @@ def make_graph(
         last_msg = result["messages"][-1]
         code_logs = result.get("code_logs", [])
 
-        # check if code logs exceed token threshold: if so, chunk them
-        # NOTE: estimates are more accurate for openai models since they leverage tiktoken.
-        code_logs_str = "\n".join(
-            [
-                f"\n```python\n{code_log['input']}\n```\nstdout: \n```bash\n{code_log['stdout']}\n```\nstderr: \n```bash\n{code_log['stderr']}\n```"
-                for code_log in code_logs
-            ]
-        )
-
         # update and route back
         # NOTE: if you do not update todos here, the todos are not generally updated! 
         todos = result.get("todos", [])
-
-        print(f"***DEBUG***: code_logs len at return: {len(code_logs)}")
 
         return Command(
             update={
