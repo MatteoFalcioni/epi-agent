@@ -21,6 +21,9 @@ from .prompts.simulator import simulator_prompt
 
 load_dotenv()
 
+if os.getenv("OPENROUTER_API_KEY") is None:
+    raise ValueError("OPENROUTER_API_KEY is not set in the environment variables. Create a .env file and set it as OPENROUTER_API_KEY=<your_api_key>.")
+
 async def get_checkpointer():
     """
     Initialize SQLite checkpointer once at app startup.

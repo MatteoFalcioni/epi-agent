@@ -1,2 +1,5 @@
 .env
 .vscode
+__cpython__/
+__pycache__/
+checkpoints.db

@@ -35,3 +35,5 @@ def get_openrouter_model(
     )
 
     return model
+
+# rich print utils for terminal UI
