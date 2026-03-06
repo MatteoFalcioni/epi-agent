@@ -1,10 +1,13 @@
-from langchain_core.tools import tool
 from io import StringIO
 import sys
+from typing import Annotated
+from langgraph.types import Command
+from langchain_core.messages import ToolMessage
+from langchain.tools import tool, ToolRuntime
 
 _exec_globals: dict = {}
 
-@tool
+# helper
 def python_executor(code: str) -> str:
     """Execute Python code locally and return stdout and stderr. State is preserved across calls."""
     stdout_capture = StringIO()
@@ -23,7 +26,22 @@ def python_executor(code: str) -> str:
     stdout = stdout_capture.getvalue()
     stderr = stderr_capture.getvalue()
 
-    return "\n".join(filter(None, [
-        f"stdout:\n{stdout}" if stdout else "",
-        f"stderr:\n{stderr}" if stderr else "",
-    ])) or "(no output)"
+    return {
+        "stdout" : stdout if stdout else "",
+        "stderr" : stderr if stderr else ""
+    }
+
+# actual tool 
+@tool 
+def execute_code(code: Annotated[str, "The Python code to execute"], runtime: ToolRuntime) -> Command:
+    """
+    Use this to execute python code. 
+    """
+    result = python_executor(code)
+
+    return Command(
+        update={
+            "code_logs" : [result],
+            "messages" : [ToolMessage(content=f"Code executed. \nstd out:\n```python\n{result['stdout']}\n```\n\nstd err:\n```python\n{result['stderr']}\n```", tool_call_id=runtime.tool_call_id)]
+        }
+    )

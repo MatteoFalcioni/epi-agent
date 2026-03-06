@@ -12,9 +12,11 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from .utils import get_openrouter_model
 from .state import MyState
-
-from .prompts.analyst import PROMPT
+from .tools.handoffs import assign_to_analyst, assign_to_simulator
+from .tools.python_executor import execute_code
+from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
+from .prompts.simulator import simulator_prompt
 
 
 load_dotenv()
@@ -32,10 +34,10 @@ def make_graph(
     checkpointer=None
 ):
     """
-    Create a graph with custom config. Reuses the same checkpointer for all invocations.
+    Creates the graph. Reuses the same checkpointer for all invocations if provided.
 
     Args:
-        checkpointer: Reused checkpointer instance from app startup.
+        checkpointer: Reused checkpointer instance.
     """
 
     # ======= API KEYS SETUP =======
@@ -50,7 +52,7 @@ def make_graph(
 
     supervisor_agent = create_agent(
         model=supervisor_llm,
-        tools=[],
+        tools=[assign_to_analyst, assign_to_simulator],
         system_prompt=supervisor_prompt,
         name="agent_supervisor",
         state_schema=MyState
@@ -64,12 +66,12 @@ def make_graph(
         api_key=openrouter_api_key
     ) 
 
-    tools = []
+    tools = [execute_code]
 
     analyst_agent = create_agent(
         model=llm,
         tools=tools,
-        system_prompt=PROMPT,  # System prompt for the analyst agent
+        system_prompt=analyst_prompt,  # System prompt for the analyst agent
         name="analyst_agent",
         state_schema=MyState,
         middleware=[
@@ -77,6 +79,7 @@ def make_graph(
         ],
     )
 
+    # ======= NODES =======
     # -------ANALYST AGENT NODE-------
     async def analyst_agent_node(
         state: MyState,
@@ -88,13 +91,13 @@ def make_graph(
         # invoke the agent
         result = await analyst_agent.ainvoke(state)
 
+        # get results
         last_msg = result["messages"][-1]
         code_logs = result.get("code_logs", [])
-
-        # update and route back
-        # NOTE: if you do not update todos here, the todos are not generally updated! 
         todos = result.get("todos", [])
 
+        # Propagate subagent's updates in the general state and route back to the supervisor for the next iteration.
+        # NOTE: if you do not update todos here, the todos are not generally updated! 
         return Command(
             update={
                 "messages": HumanMessage(content=last_msg.content),  # update messages with the last message content
@@ -120,7 +123,6 @@ def make_graph(
             goto="supervisor",
         )
     
-
     # ======= GRAPH  BUILDING =======
 
     builder = StateGraph(MyState)
