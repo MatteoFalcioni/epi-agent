@@ -14,6 +14,7 @@ from .utils import get_openrouter_model
 from .state import MyState
 from .tools.handoffs import assign_to_analyst, assign_to_simulator
 from .tools.python_executor import execute_code
+from .tools.simulator import fit_sir_from_csv, simulate_sir
 from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
 from .prompts.simulator import simulator_prompt
@@ -82,9 +83,23 @@ def make_graph(
         ],
     )
 
+    # ======= SIMULATOR AGENT =======
+    simulator_llm = get_openrouter_model(
+        model_name=os.getenv("SIMULATOR_MODEL", "openai/gpt-4.1"),
+        api_key=openrouter_api_key,
+    )
+
+    simulator_agent = create_agent(
+        model=simulator_llm,
+        tools=[simulate_sir, fit_sir_from_csv],
+        system_prompt=simulator_prompt,
+        name="simulator_agent",
+        state_schema=MyState,
+    )
+
     # ======= NODES =======
     # -------ANALYST AGENT NODE-------
-    async def analyst_agent_node(
+    def analyst_agent_node(
         state: MyState,
     ) -> Command[Literal["supervisor"]]:
         """
@@ -92,7 +107,7 @@ def make_graph(
         """
         print("[GRAPH] Entering analyst_agent_node")
         # invoke the agent
-        result = await analyst_agent.ainvoke(state)
+        result = analyst_agent.invoke(state)
 
         # get results
         last_msg = result["messages"][-1]
@@ -111,18 +126,21 @@ def make_graph(
         )
 
     # -------SIMULATOR AGENT NODE-------
-    async def simulator_agent_node(
+    def simulator_agent_node(
         state: MyState,
     ) -> Command[Literal["supervisor"]]:
         """
-        Simulator node. For now, it just routes back to the supervisor.
+        Simulator node.
         """
         print("[GRAPH] Entering simulator_agent_node")
-        # Here you would implement the logic for the simulator agent, similar to the analyst agent.
-        # For now, we just route back to the supervisor.
+
+        result = simulator_agent.invoke(state)
+        last_msg = result["messages"][-1]
 
         return Command(
-            update={},  # you can add updates here as needed
+            update={
+                "messages": [HumanMessage(content=last_msg.content)],
+            },
             goto="supervisor",
         )
     

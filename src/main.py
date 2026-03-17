@@ -26,7 +26,7 @@ async def main() -> None:
             init_state = {"messages": [HumanMessage(content=user_message)]}
 
             try:
-                result = await graph.ainvoke(init_state, config=config)
+                result = graph.invoke(init_state, config=config)
             except Exception as exc:
                 print(f"Assistant error: {exc}")
                 continue
