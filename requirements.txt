@@ -3,3 +3,6 @@ langgraph
 langgraph-checkpoint-sqlite
 langchain-openai
 dotenv
+pandas 
+matplotlib
+scipy
