@@ -6,3 +6,4 @@ dotenv
 pandas 
 matplotlib
 scipy
+rich

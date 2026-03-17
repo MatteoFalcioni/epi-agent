@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 from langchain_core.tools import tool
 
 from .models.sir import fit, rmse, sir, sir_incidence
-from utils import load_incidence_from_csv
+from .utils import load_incidence_from_csv
 
 @tool
 def simulate_sir(beta: float, gamma: float, S0: int, I0: int, R0: int, days: int) -> list:
