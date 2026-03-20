@@ -151,7 +151,7 @@ def make_graph(
     builder.add_node(
         "supervisor", supervisor_agent
     )  # , destinations=("data_analyst", "simulator", END)
-    builder.add_node("data_analyst", analyst_agent_node)
+    builder.add_node("analyst", analyst_agent_node)
     builder.add_node("simulator", simulator_agent_node)
     builder.add_edge(
         START, "supervisor"
