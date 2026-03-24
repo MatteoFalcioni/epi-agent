@@ -64,7 +64,7 @@ Find all models [here](https://ollama.com/search).
 
 You must be aware that bigger models are heavier to run. 
 
-For a first estimate of models you can run depending on your GPU - because **you need a GPu** - you can use this website: https://apxml.com/tools/vram-calculator
+For a first estimate of models you can run depending on your GPU - because **you need a GPU** - you can use this website: https://apxml.com/tools/vram-calculator
 
 Notice that some models may "fit" in VRAM but will be slower than other for inference. For example, Deepseek is usually slower locally then Qwen. So you should experiment with different models in your size range.
 
