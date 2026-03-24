@@ -7,14 +7,14 @@ from langchain_core.messages import HumanMessage
 from pydantic import SecretStr
 from dotenv import load_dotenv
 import os
-import sqlite3
+import aiosqlite
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from .utils import get_ollama_model
 from .state import MyState
 from .tools.handoffs import assign_to_analyst, assign_to_simulator
 from .tools.python_executor import execute_code
-from .tools.simulator import fit_sir_from_csv, simulate_sir
+from .tools.simulator import fit_sir_from_csv
 from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
 from .prompts.simulator import simulator_prompt
@@ -22,15 +22,12 @@ from .prompts.simulator import simulator_prompt
 
 load_dotenv()
 
-if os.getenv("OPENROUTER_API_KEY") is None:
-    raise ValueError("OPENROUTER_API_KEY is not set in the environment variables. Create a .env file and set it as OPENROUTER_API_KEY=<your_api_key>.")
-
 async def get_checkpointer():
     """
     Initialize SQLite checkpointer once at app startup.
     Returns the checkpointer instance to be reused across all graph invocations.
     """
-    conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
+    conn = await aiosqlite.connect("checkpoints.db")
     saver = AsyncSqliteSaver(conn)
     return saver, conn
 
@@ -44,14 +41,10 @@ def make_graph(
         checkpointer: Reused checkpointer instance.
     """
 
-    # ======= API KEYS SETUP =======
-    openrouter_api_key = SecretStr(os.getenv("OPENROUTER_API_KEY"))
-
     # ======= SUPERVISOR =======
     # use gpt-4.1 for supervisor (via Ollama)
     supervisor_llm = get_ollama_model(
-        model_name="qwen3.5:27b",  
-        api_key=openrouter_api_key
+        model_name="qwen3.5:27b",  # default to qwen3.5:27b if not set
     ) 
 
     supervisor_agent = create_agent(
@@ -67,7 +60,6 @@ def make_graph(
     # Create analyst LLM via Ollama
     llm = get_ollama_model(
         model_name=os.getenv("ANALYST_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
-        api_key=openrouter_api_key
     ) 
 
     tools = [execute_code]
@@ -85,13 +77,12 @@ def make_graph(
 
     # ======= SIMULATOR AGENT =======
     simulator_llm = get_ollama_model(
-        model_name=os.getenv("SIMULATOR_MODEL", "qwen3.5:27b"),
-        api_key=openrouter_api_key,
+        model_name=os.getenv("SIMULATOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
     )
 
     simulator_agent = create_agent(
         model=simulator_llm,
-        tools=[simulate_sir, fit_sir_from_csv],
+        tools=[fit_sir_from_csv],
         system_prompt=simulator_prompt,
         name="simulator_agent",
         state_schema=MyState,

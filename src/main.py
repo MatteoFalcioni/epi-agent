@@ -32,7 +32,7 @@ async def main() -> None:
     graph = make_graph(checkpointer=checkpointer)
     thread_id = str(uuid.uuid4())
 
-    console.print("[bold cyan]Epi Agent chat started.[/bold cyan]")
+    console.print("[bold cyan]Epi Agent chat started. Type /exit to end conversation.[/bold cyan]")
     console.print("[dim]Type /exit to quit.[/dim]")
 
     try:
@@ -83,7 +83,7 @@ async def main() -> None:
                 console.print(f"[bold red]Assistant error:[/bold red] {exc}")
                 continue
     finally:
-        conn.close()
+        await conn.close()
 
 
 if __name__ == "__main__":
