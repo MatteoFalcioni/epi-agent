@@ -10,7 +10,7 @@ import os
 import sqlite3
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-from .utils import get_openrouter_model
+from .utils import get_ollama_model
 from .state import MyState
 from .tools.handoffs import assign_to_analyst, assign_to_simulator
 from .tools.python_executor import execute_code
@@ -48,9 +48,9 @@ def make_graph(
     openrouter_api_key = SecretStr(os.getenv("OPENROUTER_API_KEY"))
 
     # ======= SUPERVISOR =======
-    # use gpt-4.1 for supervisor (via OpenRouter)
-    supervisor_llm = get_openrouter_model(
-        model_name="openai/gpt-4.1",  
+    # use gpt-4.1 for supervisor (via Ollama)
+    supervisor_llm = get_ollama_model(
+        model_name="qwen3.5:27b",  
         api_key=openrouter_api_key
     ) 
 
@@ -64,9 +64,9 @@ def make_graph(
 
     # ======= ANALYST AGENT =======
 
-    # Create analyst LLM via OpenRouter
-    llm = get_openrouter_model(
-        model_name=os.getenv("ANALYST_MODEL", "openai/gpt-4.1"),  # default to gpt-4.1 if not set
+    # Create analyst LLM via Ollama
+    llm = get_ollama_model(
+        model_name=os.getenv("ANALYST_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
         api_key=openrouter_api_key
     ) 
 
@@ -84,8 +84,8 @@ def make_graph(
     )
 
     # ======= SIMULATOR AGENT =======
-    simulator_llm = get_openrouter_model(
-        model_name=os.getenv("SIMULATOR_MODEL", "openai/gpt-4.1"),
+    simulator_llm = get_ollama_model(
+        model_name=os.getenv("SIMULATOR_MODEL", "qwen3.5:27b"),
         api_key=openrouter_api_key,
     )
 

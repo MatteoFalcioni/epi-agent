@@ -3,3 +3,4 @@
 __cpython__/
 __pycache__/
 checkpoints.db
+*data*
