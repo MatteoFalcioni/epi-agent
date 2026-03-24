@@ -1,6 +1,7 @@
 import os
 from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 
 def get_openrouter_model(
     model_name: str, 
@@ -36,4 +37,22 @@ def get_openrouter_model(
 
     return model
 
-# rich print utils for terminal UI
+def get_ollama_model(
+    model_name: str, 
+    temperature=None
+) -> ChatOllama:
+    """
+    Initializes a `ChatOpenAI` object with base url redirected to Ollama.
+    
+    Args:
+        model_name: The model identifier from Ollama
+        temperature: Optional temperature setting
+    Returns:
+        ChatOllama instance configured for Ollama
+    """
+    model = ChatOllama(
+        model=model_name,
+        temperature=temperature
+    )
+
+    return model
