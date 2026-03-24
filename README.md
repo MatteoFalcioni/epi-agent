@@ -3,9 +3,9 @@ Agentic AI system with epidemiologic simulations & data-analysis capabilities
 
 ## Quick Start 
 
-### 1. 📥 Clone & Install
+### 1. Clone & Install
 
-*Recommended: create a conda environment or a python venv first, for complete isolation*
+*Recommended: create a `conda` environment or a python `venv` first, for complete isolation*
 
 Then:
 
@@ -15,29 +15,81 @@ cd epi-agent
 pip install -r requirements.txt
 ```
 
-### 2. 🔧 Configure Environment
-Create `.env` from template:
-```bash
-cp .env.template .env
-# Edit .env with your API keys and configuration
+### 2. Download `Ollama` and pull a model
+
+This system runs on local llm's downloaded in your machine, through [`Ollama`](https://ollama.com/). 
+
+To use it, first download `Ollama`; run:
+
+- Linux: `curl -fsSL https://ollama.com/install.sh | sh`
+- Mac: `curl -fsSL https://ollama.com/install.sh | sh`
+- Windows: `irm https://ollama.com/install.ps1 | iex`
+
+Then to download a model to your machine: 
+
+```sh
+ollama pull qwen3.5:0.8b
 ```
 
-Required variables:
+You will see something like
 
-- `OPENROUTER_API_KEY` - needed for llm api calls
+```zsh
+pulling manifest 
+pulling afb707b6b8fa: 100% ▕██████████████████████████████████████████████████████████▏ 1.0 GB                         
+pulling 9be69ef46306: 100% ▕██████████████████████████████████████████████████████████▏  11 KB                         
+pulling 9371364b27a5: 100% ▕██████████████████████████████████████████████████████████▏   65 B                         
+pulling b14c6eab49f9: 100% ▕██████████████████████████████████████████████████████████▏  476 B                         
+verifying sha256 digest 
+writing manifest 
+success 
+```
 
-Optional Variables:
+You can then run it from shell like this:
 
-LangSmith variables to trace agent's runs (useful for dewbugging)
+```zsh
+ollama run qwen3.5:0.8b
+```
 
-- `LANGSMITH_TRACING`
-- `LANGSMITH_ENDPOINT`
-- `LANGSMITH_API_KEY`
-- `LANGSMITH_PROJECT`
+and you can use it in LangChain like this: 
 
-Set them up quickly [here](https://smith.langchain.com/o/2b3dff8d-ea0b-44a3-a981-4377843f21c8). Learn more about Langsmith traces [here](https://docs.langchain.com/langsmith/create-account-api-key#create-an-account-and-api-key).
+```python
+llm = ChatOllama(
+    model="qwen3.5:0.8b"
+)
+```
 
-### 3. Run the agent
+Find all models [here](https://ollama.com/search).
+
+#### Important Note
+
+You must be aware that bigger models are heavier to run. 
+
+For a first estimate of models you can run depending on your GPU - because **you need a GPu** - you can use this website: https://apxml.com/tools/vram-calculator
+
+Notice that some models may "fit" in VRAM but will be slower than other for inference. For example, Deepseek is usually slower locally then Qwen. So you should experiment with different models in your size range.
+
+### 3. Configure Environment [Optional]
+
+If you want to implement tracing in LangSmith (to check the agent's trajectory and reasoning) you need to 
+
+Set up LangSmith [here](https://smith.langchain.com/o/2b3dff8d-ea0b-44a3-a981-4377843f21c8). Learn more about Langsmith traces [here](https://docs.langchain.com/langsmith/create-account-api-key#create-an-account-and-api-key).
+
+Then create `.env` from template:
+
+```bash
+cp .env.template .env
+```
+
+And put the trace variables from LangSmith in `env`
+
+```
+LANGSMITH_TRACING=<your key>
+LANGSMITH_ENDPOINT=<your key>
+LANGSMITH_API_KEY=<your key>
+LANGSMITH_PROJECT=<your project>
+```
+
+### 4. Run the agent
 
 ```bash
 
@@ -45,32 +97,3 @@ python src/main.py
 
 ```
 
----
-
-
-## Roadmap
-
-We will work on two branches of the project in parallel: 
-
-1. The data analyst agent, which is specialized in analysing medical datasets 
-2. The epidemiology agent, specialized on running simulations using epidemiologic models
-
-### 1 - Data Analyst
-
-My roadmap will be (may vary):
-
-- create the graph in LangGraph: supervisor with two subagents (create prompts, state, graph, tools <- concept of tools initially). Supervisor will have structured output: next subagent + message. NOTE: maybe we do not need graph.PARENT with a supervisor node...? DONE
-
-- we need conversational memory - you can use a simple asyncsqlite saver, locally. DONE
-
-- define the tool for data analysis: python repl, can be done with sandbox or locally -> way easier to do it locally to work with data on our machine (no need for complete sandbox isolation) DONE
-
-- craft the most accurate prompt as possible for knowledge of the database
-
-- enrich the data analyst agent with other tools to work on the dataset - ex: `get_field_description` to get the description of the columns at runtime (maybe not needed because of prompt? we'll check)
-
-- craft the supervisor prompt for routing
-
-#### Key Takes (reminders for myself)
-
-Remember this does not need to be production ready, but more of a proof of concept. DO NOT overengineer it.
