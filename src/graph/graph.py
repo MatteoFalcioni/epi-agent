@@ -44,7 +44,7 @@ def make_graph(
     # ======= SUPERVISOR =======
     # use gpt-4.1 for supervisor (via Ollama)
     supervisor_llm = get_ollama_model(
-        model_name="qwen3.5:27b",  # default to qwen3.5:27b if not set
+        model_name=os.getenv("SUPERVISOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
     ) 
 
     supervisor_agent = create_agent(

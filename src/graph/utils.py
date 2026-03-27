@@ -39,20 +39,23 @@ def get_openrouter_model(
 
 def get_ollama_model(
     model_name: str, 
-    temperature=None
+    temperature=None,
+    reasoning: bool | str | None = True,
 ) -> ChatOllama:
     """
-    Initializes a `ChatOpenAI` object with base url redirected to Ollama.
+    Initializes a `ChatOllama` instance.
     
     Args:
         model_name: The model identifier from Ollama
         temperature: Optional temperature setting
+        reasoning: Enable thinking/reasoning tokens. True by default.
     Returns:
         ChatOllama instance configured for Ollama
     """
     model = ChatOllama(
         model=model_name,
-        temperature=temperature
+        temperature=temperature,
+        reasoning=reasoning,
     )
 
     return model
