@@ -38,7 +38,7 @@ def fit_sir_from_csv(
     
     # harcoded csv path for the moment (check utils, it's harcoded to 'data/Accessi in PS 2022-2026 con FLU - aggiornato al 8-03-2026.csv')
     fit_incidence = load_incidence_from_csv(
-        column=0,   # hardcoded column to let llm choose less stuff
+        column= '0',   # hardcoded column to let llm choose less stuff
         start_date=start_date,
         end_date=end_date,
         rolling_window=rolling_window,
