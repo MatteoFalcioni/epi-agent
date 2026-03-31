@@ -12,6 +12,8 @@ from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
 
+from delay_utilities import *
+
 ### EPIDEMIOLOGICAL MODELS ###
 
 # Susceptible - Infectious - Removed and incidence function.
@@ -23,9 +25,9 @@ def sir(t, y, beta, mu, N):
 
 def sir_incidence(x, t_span, N):
     beta, mu, I0, f = x # Respectively beta = infectivity, 
-                        #              mu = recovery rate, 
-                        #              I0 = initial infective people,
-                        #              f = detection fraction.
+                        #              mu   = recovery rate, 
+                        #              I0   = initial infective people,
+                        #              f    = detection fraction.
 
     y0 = np.array([N-I0, I0, 0.])
 
@@ -38,6 +40,8 @@ def sir_incidence(x, t_span, N):
     incidence = f * beta * s * i / N
 
     return incidence
+
+sir_bounds = ((0., np.inf), (0., np.inf), (0., np.inf), (0.,1.))
 
 # Susceptible - Exposed - Infectious - Removed and incidence function.
 
@@ -67,6 +71,8 @@ def seir_incidence(x, t_span, N):
 
     return incidence
 
+seir_bounds = ((0., np.inf), (0., np.inf), (0., np.inf), (0., np.inf), (0., np.inf), (0.,1.))
+
 # Susceptible - Infectious - Removed model with distributed delay incidence function.
 
 def gammasir_incidence(x, t_span, N, dt = 1/24.):
@@ -87,28 +93,27 @@ def gammasir_incidence(x, t_span, N, dt = 1/24.):
     
     S[0] = N - I0
     I[0] = I0
-	
-    a = (T_i/sigma_i)**2
-    b = sigma_i**2 / T_i
     
-    k_max = np.int32(np.rint(T_i/dt + 10 * sigma_i/dt)) # Maximum index of the kernel.
-    lk    = k_max + 1 # Kernel length
 
-    gamma_i  = np.array([(dt * k)**(a-1)*np.exp(-b*dt*k) for k in range(lk)]) 
-    gamma_i /= gamma_i.sum()
+    gamma_i  = discrete_gamma(T_i, sigma_i, min_t = 0., max_t = T_i + 10 * sigma_i) 
 
     for t in range(len(ts)-1):
         phi_SI[t] = beta * S[t] * I[t] / N * dt
-        kernel_excess = max(t + lk - len(phi_IR), 0)
-        if kernel_excess:
-            phi_IR[t:t+lk] += gamma_i[:-kernel_excess] * phi_SI[t]
-        else:
-            phi_IR[t:t+lk] += gamma_i * phi_SI[t]
+
+#        if kernel_excess:
+#            phi_IR[t:t+lk] += gamma_i[:-kernel_excess] * phi_SI[t]
+#        else:
+#            phi_IR[t:t+lk] += gamma_i * phi_SI[t]
+
+        propagate_forward(t, len(ts)-1, phi_SI[t], [phi_IR], gamma_i, branching_ratios = np.array([1.]))
+
         S[t+1] = S[t] - phi_SI[t]
         I[t+1] = I[t] + phi_SI[t] -  phi_IR[t]
         R[t+1] = R[t] + phi_IR[t]
 
     return f * phi_SI[::int(1/dt)]
+
+gsir_bounds = ((0., np.inf), (0., np.inf), (0., np.inf), (0., np.inf), (0., np.inf), (0.,1.))
 
 ### METRICS ###
 
@@ -148,7 +153,7 @@ if __name__ == '__main__':
     df = pd.read_csv('../../../../data/daily_positives_flu.csv', index_col = 0, parse_dates = True)
     
     beg     = '2025-11-01'
-    end_fit = '2025-12-16'
+    end_fit = '2025-12-15'
     end_tst = '2026-02-28'
     
     df['0'].plot(color = 'C1')
@@ -174,7 +179,7 @@ if __name__ == '__main__':
                                        fit_incidence[0]/0.1, fit_incidence[0]/0.1, 
                                        0.1])
     
-    initial_guess_gammasir = np.array([1., 5., 2., 
+    initial_guess_gammasir = np.array([1., 5., 3., 
                                        fit_incidence[0]/0.1, 
                                        0.1])
     optimum_sir  = fit(sir_incidence, rmse, fit_incidence, 
@@ -219,15 +224,17 @@ if __name__ == '__main__':
     
     pred_incidence_gsir = gammasir_incidence(optimum_gsir.x, t_span = t_span, N = N, dt = 1/24.)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize = (10,5))
     
     ax.plot(tst_index, tst_incidence) 
-    ax.plot(tst_index, pred_incidence_sir) 
-    ax.plot(tst_index, pred_incidence_seir) 
-    ax.plot(tst_index, pred_incidence_gsir) 
-
+    ax.plot(tst_index, pred_incidence_sir,  label = "SIR model") 
+    ax.plot(tst_index, pred_incidence_seir, label = "SEIR model") 
+    ax.plot(tst_index, pred_incidence_gsir, label = "Distributed-delay SIR model") 
+    
     ax.vlines([end_fit], ymin = 0., ymax = 50, linestyle = 'dashed',
-               color = 'C1')
-   
-    fig.savefig('test_pred.png') 
+               color = 'C1', label = 'Fit left of this line')
+
+    ax.legend(fontsize = 14) 
+
+    fig.savefig('test_pred.svg') 
     plt.show()
