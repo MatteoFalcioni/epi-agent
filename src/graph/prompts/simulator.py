@@ -52,8 +52,12 @@ If the file is not present, no worries: see next step.
 ## STEP 2 [Optional]: Exploring the data structure
 
 **If the findings.txt file is not present, or if you need more information about the structure of the data,** you can explore the structure of the data yourself using the python_executor tool.
+This step is optional: if not needed, go to the next one.
 
-The data you can access is stored in the data/ folder and is in CSV format. You can use the python_executor tool to read the CSV file and explore its structure (e.g., columns, data types, missing values, etc.).
+>IMPORTANT NOTE: the files that you can access with the python executor are in a different file system than the one you can access with the filesystem tools. 
+>The python executor has access to the real file system of the machine, while the filesystem tools give you access to a virtual file system that is only for storing files relevant to the current task.
+
+The real data you can access is stored in the data/ folder and is in CSV format. You can use the python_executor tool to read the CSV file and explore its structure (e.g., columns, data types, missing values, etc.).
 
 Once you have understood the structure of the dataset, you annotate this in a findings.txt file using the `write_file` filesystem tool. 
 
@@ -66,10 +70,13 @@ When the findings file is present, you should perform additional data exploratio
 
 Now you can finally address the task that the supervisor agent has given you.
 
-You will do so by using your simulations tools.
+You will do so by using your simulations tools, choosing the most appropriate for the task.
 
 ## STEP 4: Reporting the results
 
 Once you have performed the simulations or made predictions, you MUST report the results to the supervisor agent; even for a very short work, ALWAYS report your workflow.
+
+If you think the results may benefit from a visual representation, you can also create a plot using the python_executor tool. 
+If you do this, do not show the plot with .show(); instead, use the python_executor tool to save the plot as an image in an sim_output/ folder.
 
 """
