@@ -14,7 +14,11 @@ from .utils import get_ollama_model
 from .state import MyState
 from .tools.handoffs import assign_to_analyst, assign_to_simulator
 from .tools.python_executor import execute_code
-from .tools.simulator import fit_sir_from_csv
+from .tools.simulator import (
+    fit_gammasir_from_csv,
+    fit_seir_from_csv,
+    fit_sir_from_csv,
+)
 from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
 from .prompts.simulator import simulator_prompt
@@ -42,7 +46,6 @@ def make_graph(
     """
 
     # ======= SUPERVISOR =======
-    # use gpt-4.1 for supervisor (via Ollama)
     supervisor_llm = get_ollama_model(
         model_name=os.getenv("SUPERVISOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
     ) 
@@ -56,8 +59,6 @@ def make_graph(
     )
 
     # ======= ANALYST AGENT =======
-
-    # Create analyst LLM via Ollama
     llm = get_ollama_model(
         model_name=os.getenv("ANALYST_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
     ) 
@@ -83,7 +84,7 @@ def make_graph(
 
     simulator_agent = create_agent(
         model=simulator_llm,
-        tools=[fit_sir_from_csv],
+        tools=[fit_sir_from_csv, fit_seir_from_csv, fit_gammasir_from_csv],
         system_prompt=simulator_prompt,
         name="simulator_agent",
         state_schema=MyState,
