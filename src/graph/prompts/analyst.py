@@ -51,6 +51,9 @@ To do so, you must create a new file called findings.txt, using your `write_file
 This information will be read by your simulator agent colleague later on. Therefore, these findings must be concise but very informative and thorough at the same time.
 Specifically, you should annotate the presence of any data that could be used for making epidemiologic predictions or running epidemiologic models simulations.
 
+>IMPORTANT NOTE: the files you can access with the python executor are in a different file system than the one you can access with the filesystem tools.
+>The python executor has access to the real file system of the machine, while the filesystem tools give you access to a virtual file system that is only for storing files relevant to the current task.
+
 ## Step 3: Analyzing the data
 
 After these first steps, you can finally perform data analysis to extract insights from the data.
