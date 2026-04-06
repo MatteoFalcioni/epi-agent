@@ -4,11 +4,11 @@ from langchain.agents import create_agent
 from langgraph.graph import StateGraph, START
 from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.messages import HumanMessage
-from pydantic import SecretStr
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from deepagents import FilesystemMiddleware
 from dotenv import load_dotenv
 import os
 import aiosqlite
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from .utils import get_ollama_model
 from .state import MyState
@@ -71,7 +71,8 @@ def make_graph(
         name="analyst_agent",
         state_schema=MyState,
         middleware=[
-            TodoListMiddleware()
+            TodoListMiddleware(),
+            FilesystemMiddleware() 
         ],
     )
 
@@ -86,6 +87,7 @@ def make_graph(
         system_prompt=simulator_prompt,
         name="simulator_agent",
         state_schema=MyState,
+        middleware=[TodoListMiddleware(), FilesystemMiddleware()],  # Simulator has access to filesystem as well
     )
 
     # ======= NODES =======
@@ -104,14 +106,16 @@ def make_graph(
         last_msg = result["messages"][-1]
         code_logs = result.get("code_logs", [])
         todos = result.get("todos", [])
+        files = result.get("files", [])  # also updating filesytem middleware if there are any file updates
 
         # Propagate subagent's updates in the general state and route back to the supervisor for the next iteration.
         # NOTE: if you do not update todos here, the todos are not generally updated! 
         return Command(
             update={
-                "messages": HumanMessage(content=last_msg.content),  # update messages with the last message content
+                "messages": [HumanMessage(content=last_msg.content)],  # update messages with the last message content
                 "code_logs" : code_logs,
                 "todos": todos,  # propagate the todos
+                "files": files,  # propagate file updates to the filesystem middleware
             },
             goto="supervisor",
         )
@@ -127,10 +131,12 @@ def make_graph(
 
         result = simulator_agent.invoke(state)
         last_msg = result["messages"][-1]
+        files = result.get("files", []) # simulator has filessytem as well 
 
         return Command(
             update={
                 "messages": [HumanMessage(content=last_msg.content)],
+                "files": files,  
             },
             goto="supervisor",
         )
