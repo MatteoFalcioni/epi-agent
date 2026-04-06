@@ -1,0 +1,10 @@
+langchain==1.2.13
+langgraph==1.1.3
+deepagents==0.4.12
+langgraph-checkpoint-sqlite
+langchain-openai
+langchain-ollama
+dotenv
+pandas 
+matplotlib
+scipy
