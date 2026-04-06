@@ -43,7 +43,7 @@ class MyState(AgentState):
             dictionary of files managed by the filesystem middleware.
     """
 
-    simualations: Annotated[
+    simulations: Annotated[
         list[dict], list_add_dicts
     ]  # list of dicts, each dicts is a simulation run with its datetime and results (parameters, metrics, etc.)
     code_logs: Annotated[
