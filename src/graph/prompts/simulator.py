@@ -43,7 +43,7 @@ If you think that the task given to you is not clear or is completely out of you
 
 In general, a data exploration process will be already been performed by your analyst agent colleague, who will have annotated the relevant findings at the path `context/findings.txt`.
 
-Therefore, the first step is to check if this file is present in the filesystem and read its content. You must do so by using the `read_file` tool.
+Therefore, the first step is to check if this file is present in the filesystem and read its content. You must do so by using the python_executor tool.
 If the file is not present, no worries: see next step. 
 
 ## STEP 2 [Optional]: Exploring the data structure
