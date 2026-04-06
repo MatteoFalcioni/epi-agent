@@ -194,6 +194,54 @@ def _fit_model_from_csv(
     end_date: str | None = None,
     rolling_window: int = 7,
 ) -> Command:
+    """
+    Shared fitting pipeline for all model-specific public tools.
+
+    This is the core orchestrator that ties together data loading, model specification,
+    optimization, and result formatting. All three public tools (fit_sir_from_csv,
+    fit_seir_from_csv, fit_gammasir_from_csv) delegate to this single implementation
+    to avoid code duplication.
+
+    Args:
+        runtime: Tool runtime context (used for message routing and call tracking).
+        model: Model identifier ("SIR", "SEIR", or "GAMMASIR"). Determines which
+            model spec and parameter schema will be used.
+        model_parameters: Optional per-model initial guesses. Missing fields are
+            filled from model defaults via _get_model_spec.
+        csv_path: Path to CSV file with datetime index and "incidence" column.
+        metric: Metric name for optimization. NOTE: Currently only "rmse" is supported.
+        population: Total population (N) used in model dynamics.
+        start_date: Optional date filter (inclusive). If provided, incidence data
+            before this date is excluded.
+        end_date: Optional date filter (inclusive). If provided, incidence data
+            after this date is excluded.
+        rolling_window: Window size for rolling average smoothing (default: 7 days).
+
+    Returns:
+        Command: Result command with two updates:
+            - "messages": ToolMessage with JSON-serialized result_dict.
+            - "simulations": list containing result_dict for state propagation.
+
+    Result dict schema:
+        - timestamp: ISO 8601 UTC timestamp of fitting.
+        - model: Fitted model identifier.
+        - csv_path: Input CSV path (for provenance tracking).
+        - <model-specific fields>: e.g., beta, mu, I0, detection_fraction (SIR).
+        - <derived fields>: e.g., R0 (from result_fields & derived_fields spec).
+        - rmse: Optimizer metric value.
+        - n_points: Number of data points used in fitting.
+        - success: Boolean success flag from scipy.optimize.minimize.
+        - message: Optimizer message string.
+        - predicted_incidence: Fitted model incidence values.
+        - observed_incidence: Preprocessed input incidence values.
+
+    Workflow:
+        1. Load and preprocess incidence data via load_incidence_from_csv.
+        2. Fetch model spec (functions, parameters, result schema) via _get_model_spec.
+        3. Run scipy optimizer with the incidence function and metric.
+        4. Unpack optimizer result and compute derived quantities (e.g., R0).
+        5. Return Command with results routed to state.
+    """
     if population <= 0:
         raise ValueError("population must be > 0")
     if rolling_window <= 0:
