@@ -22,11 +22,13 @@ def list_add_dicts(
     return left + right
 
 
-# NOTE: (!) CRUCIAL
-# If we want to propagate the todos state var, added by the Middleware, to the general state,
-# we need to still define the todos in state.
-# If we try to pass the todos update to the general state, this will fail because the middleware
-# automatically adds the state var only to the agent that has that middleware!
+# NOTE: (!) 
+# If we want to propagate the variables added by middleware (todos and files) we need to add them to the state and update them in the nodes, 
+# otherwise they will not be propagated in the graph and the middleware will not work properly. 
+# Here I have a a doubt: is this necessary because supervisor has no node -> subagents are subgraphs,
+# or is this generally needed? need to investigate...
+# Also: we should be losing reducers for the middleware variables if we define state like we do below
+# this isn't a problem for agents that do not work in parallel like in our case, but it surely isn't best practice
 
 class MyState(AgentState):
     """
@@ -37,11 +39,14 @@ class MyState(AgentState):
             list of dicts containing input code and output+err logs;
         * todos (`list[dict]`): 
             list of todos for the analyst to perform. 
+        * files (`dict`):
+            dictionary of files managed by the filesystem middleware.
     """
 
     # ---- report features ----
     code_logs: Annotated[
         list[dict], list_add_dicts
     ]  # list of dicts (we need chronological order!), each dicts is input and output of a code block (out can be stdout or stderr or both)
-    # ---- todos ----
-    todos: list[dict]
+    # ---- variables added by middleware ----
+    todos: list
+    files: dict
