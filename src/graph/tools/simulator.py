@@ -2,24 +2,30 @@ from __future__ import annotations
 
 import numpy as np
 from langchain_core.tools import tool
+from langgraph.types import Command
+from typing_extensions import Annotated, Literal
 from .models.sir import fit, rmse, sir_incidence
 from .utils import load_incidence_from_csv
 
 @tool
-def fit_sir_from_csv(
-    population: int,
+def fit_from_csv(
+    csv_path: Annotated[str, "Path to the CSV file containing incidence data."],
+    model: Literal["SIR", "SEIR", "GAMMASIR"] = "SIR",
+    population: Annotated[int, "Total population size (N) for the model."] = 800000,
     start_date: str | None = None,
     end_date: str | None = None,
     rolling_window: int = 7,
     initial_beta: float = 1.0,
     initial_mu: float = 0.2,
     initial_detection_fraction: float = 0.1,
-) -> dict:
+) -> Command:
     """
-    Fit SIR model parameters to incidence data loaded from a (hardcoded) CSV file.
+    Fit an epidemiologic model parameters to incidence data loaded from a CSV file.
 
     Args:
-    - population: total population size (N) for the SIR model.
+    - csv_path: Path to the CSV file containing incidence data.
+    - model: The epidemiological model to fit (default: "SIR").
+    - population: total population size (N) for the model.
     - start_date: optional start date to filter the CSV data (inclusive).
     - end_date: optional end date to filter the CSV data (inclusive).
     - rolling_window: window size for rolling average smoothing of incidence data (default: 7).
@@ -36,8 +42,8 @@ def fit_sir_from_csv(
     if initial_detection_fraction <= 0:
         raise ValueError("initial_detection_fraction must be > 0")
     
-    # harcoded csv path for the moment (check utils, it's harcoded to 'data/Accessi in PS 2022-2026 con FLU - aggiornato al 8-03-2026.csv')
     fit_incidence = load_incidence_from_csv(
+        csv_path=csv_path,
         column= '0',   # hardcoded column to let llm choose less stuff
         start_date=start_date,
         end_date=end_date,
