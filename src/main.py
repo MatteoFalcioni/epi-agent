@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+import os   
 from langchain_core.messages import HumanMessage
 from graph.graph import get_checkpointer, make_graph
 from cli.streaming import StreamPrinter
@@ -9,6 +10,14 @@ async def main() -> None:
     checkpointer, conn = await get_checkpointer()
     graph = make_graph(checkpointer=checkpointer)
     thread_id = str(uuid.uuid4())
+
+    # make sure the context/ folder exists for the findings.txt file
+    if not os.path.exists("context"):
+        os.makedirs("context")
+    # if findings.txt exists inside the context folder, delete it to start fresh
+    if os.path.exists("context/findings.txt"):  
+        os.remove("context/findings.txt")
+
     printer = StreamPrinter(pretty=True)
 
     printer.print_banner()
