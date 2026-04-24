@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage
 from graph.graph import get_checkpointer, make_graph
 from cli.streaming import StreamPrinter
 import matplotlib
-matplotlib.use('Agg')  # Must come BEFORE pyplot import
+matplotlib.use('Agg')  # without x11 transfer (ssh), we need this to avoid segfault
 
 
 async def main() -> None:
