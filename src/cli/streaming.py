@@ -149,6 +149,21 @@ class StreamPrinter:
                         if self._in_thinking:
                             self._out("")
                             self._in_thinking = False
+                        # Check for "Updated todo list" pattern and render nicely
+                        if "Updated todo list to" in text:
+                            import re
+                            match = re.search(r"Updated todo list to (\[.*\])", text, re.DOTALL)
+                            if match:
+                                try:
+                                    todos = json.loads(match.group(1))
+                                    self._render_todos(todos)
+                                    # Remove the raw text part
+                                    remaining = text[:match.start()].strip()
+                                    if remaining:
+                                        self._out(_w(remaining, color, self.pretty), end="")
+                                    continue
+                                except json.JSONDecodeError:
+                                    pass  # Fall through to regular text output
                         self._out(_w(text, color, self.pretty), end="")
 
                 elif btype == "tool_call_chunk":
@@ -207,6 +222,12 @@ class StreamPrinter:
             ))
         elif event == "tool_output":
             output = data.get("output", {})
+            # Check if this is a todo list update and render it nicely
+            if tool_name in ("update_todo_list", "TodoList") and isinstance(output, dict):
+                if "todos" in output or "todo_list" in output:
+                    todos = output.get("todos", output.get("todo_list", []))
+                    self._render_todos(todos)
+                    return
             self._out(_w(
                 f"  ⬆ {tool_name} output: {_safe_json(output)}",
                 Ansi.BRIGHT_BLUE, self.pretty,
@@ -215,6 +236,78 @@ class StreamPrinter:
             self._out(_w(
                 f"  [custom] {_safe_json(data)}", Ansi.BRIGHT_BLUE, self.pretty,
             ))
+
+    def _render_todos(self, todos: list) -> None:
+        """Render a todo list with nice formatting."""
+        if not todos:
+            return
+        
+        # Box-drawing characters for the frame
+        TOP_LEFT = "┌"
+        TOP_RIGHT = "┐"
+        BOTTOM_LEFT = "└"
+        BOTTOM_RIGHT = "┘"
+        HORIZONTAL = "─"
+        VERTICAL = "│"
+        
+        # Status indicators with colors
+        STATUS_COLORS = {
+            "completed": Ansi.GREEN,
+            "in_progress": Ansi.YELLOW,
+            "pending": Ansi.DIM,
+            "failed": Ansi.RED,
+        }
+        STATUS_SYMBOLS = {
+            "completed": "✓",
+            "in_progress": "▶",
+            "pending": "○",
+            "failed": "✗",
+        }
+        
+        # Calculate max width for the box
+        max_content_width = 0
+        for todo in todos:
+            content = todo.get("content", todo.get("text", str(todo)))
+            max_content_width = max(max_content_width, len(content))
+        
+        # Header row
+        header = " Todo List "
+        box_width = max(max_content_width + 4, len(header) + 4)
+        padding = box_width - len(header) - 2
+        
+        self._out(_w(
+            f"  {TOP_LEFT}{HORIZONTAL * (box_width - 2)}{TOP_RIGHT}",
+            Ansi.CYAN, self.pretty,
+        ))
+        self._out(_w(
+            f"  {VERTICAL}{' ' * ((box_width - len(header) - padding) // 2)}{header}{' ' * ((box_width - len(header) + padding) // 2)}{VERTICAL}",
+            Ansi.CYAN, self.pretty,
+        ))
+        self._out(_w(
+            f"  {VERTICAL}{HORIZONTAL * (box_width - 2)}{VERTICAL}",
+            Ansi.CYAN, self.pretty,
+        ))
+        
+        # Todo items
+        for todo in todos:
+            content = todo.get("content", todo.get("text", str(todo)))
+            status = todo.get("status", "pending")
+            
+            color = STATUS_COLORS.get(status, Ansi.DIM)
+            symbol = STATUS_SYMBOLS.get(status, "○")
+            
+            # Truncate content if too long
+            display_content = content[:max_content_width] if len(content) > max_content_width else content
+            
+            self._out(_w(
+                f"  {VERTICAL} {symbol} {display_content}{' ' * (max_content_width - len(display_content))} {VERTICAL}",
+                color, self.pretty,
+            ))
+        
+        self._out(_w(
+            f"  {BOTTOM_LEFT}{HORIZONTAL * (box_width - 2)}{BOTTOM_RIGHT}",
+            Ansi.CYAN, self.pretty,
+        ))
 
     # ── updates: node finished ───────────────────────────────
 
