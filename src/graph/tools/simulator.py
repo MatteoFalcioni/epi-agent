@@ -398,3 +398,121 @@ def fit_gammasir_from_csv(
         end_date=end_date,
         rolling_window=rolling_window,
     )
+
+
+@tool
+def compute_incidence(
+    runtime: ToolRuntime,
+    model: Annotated[Literal["SIR", "SEIR", "GAMMASIR"], "The epidemiological model to use for prediction."],
+    beta: Annotated[float, "Transmission rate (beta)."],
+    mu: Annotated[float, "Recovery rate (mu) for SIR, or used as recovery rate in SEIR."],
+    detection_fraction: Annotated[float, "Detection fraction (fraction of actual cases that are detected)."],
+    population: Annotated[int, "Total population size (N)."] = 800000,
+    n_days: Annotated[int, "Number of days to predict."] = 30,
+    initial_infected: Annotated[float, "Initial number of infected individuals (I0)."] = 100.0,
+    gamma: Annotated[float | None, "Latent period rate (gamma) for SEIR model (1/incubation period)."] = None,
+    infectious_period: Annotated[float | None, "Average infectious period (days) for GAMMASIR."] = None,
+    infectious_std: Annotated[float | None, "Standard deviation of infectious period for GAMMASIR."] = None,
+) -> Command:
+    """
+    Compute predicted incidence values using a fitted epidemiological model.
+    
+    Use this tool to make predictions of future incidence values based on fitted
+    parameters from a previous model fit (SIR, SEIR, or GAMMASIR).
+    
+    Args:
+        model: The epidemiological model to use (SIR, SEIR, or GAMMASIR).
+        beta: Transmission rate (beta parameter from fitting).
+        mu: Recovery rate (mu parameter from fitting).
+        detection_fraction: Detection fraction (fraction of cases detected).
+        population: Total population size (N).
+        n_days: Number of days to predict forward.
+        initial_infected: Initial number of infected individuals (I0).
+        gamma: For SEIR model - rate of progression from exposed to infectious (1/incubation period).
+        infectious_period: For GAMMASIR model - average infectious period in days.
+        infectious_std: For GAMMASIR model - standard deviation of infectious period.
+    
+    Returns:
+        Predicted incidence values for the specified number of days.
+    """
+    from .models.models import sir_incidence, seir_incidence, gammasir_incidence
+    
+    if model == "SIR":
+        # SIR parameters: beta, mu, I0, detection_fraction
+        x = [beta, mu, initial_infected, detection_fraction]
+        t_span = (0.0, n_days)
+        predicted_incidence = sir_incidence(x, t_span, population)
+    
+    elif model == "SEIR":
+        if gamma is None:
+            return Command(
+                update={
+                    "messages": [ToolMessage(
+                        content=json.dumps({"error": "For SEIR model, 'gamma' parameter is required (rate of progression from exposed to infectious)."}),
+                        tool_call_id=runtime.tool_call_id
+                    )]
+                }
+            )
+        # SEIR parameters: beta, gamma, mu, E0, I0, detection_fraction
+        # Assume E0 = I0 initially for simplicity
+        E0 = initial_infected
+        x = [beta, gamma, mu, E0, initial_infected, detection_fraction]
+        t_span = (0.0, n_days)
+        predicted_incidence = seir_incidence(x, t_span, population)
+    
+    elif model == "GAMMASIR":
+        if infectious_period is None or infectious_std is None:
+            return Command(
+                update={
+                    "messages": [ToolMessage(
+                        content=json.dumps({"error": "For GAMMASIR model, 'infectious_period' and 'infectious_std' parameters are required."}),
+                        tool_call_id=runtime.tool_call_id
+                    )]
+                }
+            )
+        # GAMMASIR parameters: beta, T_i, sigma_i, I0, detection_fraction
+        x = [beta, infectious_period, infectious_std, initial_infected, detection_fraction]
+        t_span = (0.0, n_days)
+        predicted_incidence = gammasir_incidence(x, t_span, population)
+    
+    else:
+        return Command(
+            update={
+                "messages": [ToolMessage(
+                    content=json.dumps({"error": f"Unknown model: {model}"}),
+                    tool_call_id=runtime.tool_call_id
+                )]
+            }
+        )
+    
+    # Convert to list of floats
+    predicted_incidence_list = [float(value) for value in predicted_incidence]
+    
+    result_dict = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "model": model,
+        "parameters": {
+            "beta": beta,
+            "mu": mu,
+            "detection_fraction": detection_fraction,
+            "population": population,
+            "n_days": n_days,
+            "initial_infected": initial_infected,
+        },
+        "predicted_incidence": predicted_incidence_list,
+        "n_days_predicted": n_days,
+    }
+    
+    # Add model-specific parameters
+    if model == "SEIR" and gamma is not None:
+        result_dict["parameters"]["gamma"] = gamma
+    elif model == "GAMMASIR":
+        result_dict["parameters"]["infectious_period"] = infectious_period
+        result_dict["parameters"]["infectious_std"] = infectious_std
+    
+    return Command(
+        update={
+            "messages": [ToolMessage(content=json.dumps(result_dict), tool_call_id=runtime.tool_call_id)],
+            "simulations": [result_dict],
+        }
+    )

@@ -17,6 +17,7 @@ from .tools.simulator import (
     fit_gammasir_from_csv,
     fit_seir_from_csv,
     fit_sir_from_csv,
+    compute_incidence,
 )
 from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
@@ -82,7 +83,7 @@ def make_graph(
 
     simulator_agent = create_agent(
         model=simulator_llm,
-        tools=[fit_sir_from_csv, fit_seir_from_csv, fit_gammasir_from_csv],
+        tools=[fit_sir_from_csv, fit_seir_from_csv, fit_gammasir_from_csv, compute_incidence],
         system_prompt=simulator_prompt,
         name="simulator_agent",
         state_schema=MyState,
