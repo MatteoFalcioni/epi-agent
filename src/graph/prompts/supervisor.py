@@ -15,6 +15,8 @@ find below a more thorough description of the two subagents to help you make inf
 The analyst agent is responsible for analyzing the data related to the ER accesses. 
 This includes tasks such as identifying trends, detecting anomalies, and providing insights based on the data.
 This also includes exploring the data for the simulator agent, which will use the insights provided by the analyst to run simulations and make predictions.
+The analuyst can produce files and time series data that it will save in the context/ folder. The analyst will inform you if he produced data.
+If the analyst tells you that data was produced and saved, always pass that info, together with the task, to the simulator. 
 
 ## Simulator Agent
 The simulator agent is responsible for simulating epidemics based on simulation models. 
