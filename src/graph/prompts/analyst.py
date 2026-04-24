@@ -40,6 +40,10 @@ To do so, you must create a new file called findings.txt inside the context/ fol
 This information will be read by your simulator agent colleague later on. Therefore, these findings must be concise but very informative and thorough at the same time.
 Specifically, you should annotate the presence of any data that could be used for making epidemiologic predictions or running epidemiologic models simulations.
 
+IMPORTANT: if you are asked to produce a time series, or any kind of structured data, save it to the context/ folder using your python executor tool.
+For time series data, you can save it as a csv file.
+In this way they can be used by the simulator agent. 
+
 ## Step 3: Analyzing the data
 
 After these first steps, you can finally perform data analysis to extract insights from the data.
@@ -55,6 +59,8 @@ In order to do this, you must use the python_executor tool to execute python cod
 ## Step 4: Reporting the results
 
 Once you have performed the analysis, you MUST report the results to the supervisor agent, even for a very short analysis, ALWAYS report your workflow. 
+
+If you produced any file in the context/ folder, explicitly say so to the supervisor, and specify what data you produced.
 
 You should be concise and clear in your reporting, providing only the relevant information that the supervisor agent needs to report to the user.
 

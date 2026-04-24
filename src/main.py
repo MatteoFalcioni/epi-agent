@@ -4,6 +4,8 @@ import os
 from langchain_core.messages import HumanMessage
 from graph.graph import get_checkpointer, make_graph
 from cli.streaming import StreamPrinter
+import matplotlib
+matplotlib.use('Agg')  # Must come BEFORE pyplot import
 
 
 async def main() -> None:
