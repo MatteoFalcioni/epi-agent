@@ -5,7 +5,6 @@ from langgraph.graph import StateGraph, START
 from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from deepagents import FilesystemMiddleware
 from dotenv import load_dotenv
 import os
 import aiosqlite
@@ -72,8 +71,7 @@ def make_graph(
         name="analyst_agent",
         state_schema=MyState,
         middleware=[
-            TodoListMiddleware(),
-            FilesystemMiddleware() 
+            TodoListMiddleware()
         ],
     )
 
@@ -88,7 +86,7 @@ def make_graph(
         system_prompt=simulator_prompt,
         name="simulator_agent",
         state_schema=MyState,
-        middleware=[TodoListMiddleware(), FilesystemMiddleware()],  # Simulator has access to filesystem as well
+        middleware=[TodoListMiddleware()],  # Simulator has access to filesystem as well
     )
 
     # ======= NODES =======
