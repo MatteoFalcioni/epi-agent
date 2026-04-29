@@ -100,7 +100,7 @@ def make_graph(
         """
         print("[GRAPH] Entering analyst_agent_node")
         # invoke the agent
-        result = analyst_agent.invoke(state)
+        result = analyst_agent.invoke(state["messages"][-1])
 
         # get results
         last_msg = result["messages"][-1]

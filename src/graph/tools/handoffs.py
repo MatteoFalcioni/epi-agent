@@ -26,7 +26,7 @@ def create_handoff_tool(
             tool_call_id=runtime.tool_call_id,
         )
         task_msg = HumanMessage(
-            content=f"The agent supervisor advices you to perform the following task : \n{task}"
+            content=f"The agent supervisor advises you to perform the following task : \n{task}"
         )
 
         return Command(
