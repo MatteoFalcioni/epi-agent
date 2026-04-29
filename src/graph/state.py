@@ -38,9 +38,7 @@ class MyState(AgentState):
         * code_logs (`list[dict[str, str]]`): 
             list of dicts containing input code and output+err logs;
         * todos (`list[dict]`): 
-            list of todos for the analyst to perform. 
-        * files (`dict`):
-            dictionary of files managed by the filesystem middleware.
+            list of todos for the analyst to perform.
     """
 
     simulations: Annotated[
