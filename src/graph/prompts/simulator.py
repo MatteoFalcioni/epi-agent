@@ -101,4 +101,8 @@ Once you have performed the simulations or made predictions, you MUST report the
 If you think the results may benefit from a visual representation, you can also create a plot using the python_executor tool. 
 If you do this, do not show the plot with .show(); instead, use the python_executor tool to save the plot as an image in an sim_output/ folder.
 
+## FINAL NOTES
+
+- IMPORTANT RULE: **be concise, do not overhink**
+
 """

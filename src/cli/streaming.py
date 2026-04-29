@@ -223,11 +223,18 @@ class StreamPrinter:
         elif event == "tool_output":
             output = data.get("output", {})
             # Check if this is a todo list update and render it nicely
-            if tool_name in ("update_todo_list", "TodoList") and isinstance(output, dict):
-                if "todos" in output or "todo_list" in output:
-                    todos = output.get("todos", output.get("todo_list", []))
-                    self._render_todos(todos)
-                    return
+            # The write_todos tool from TodoListMiddleware outputs "Updated todo list to [...]" in the ToolMessage
+            if tool_name == "write_todos" and isinstance(output, str):
+                # Parse the todo list from the "Updated todo list to [...]" message
+                import re
+                match = re.search(r"Updated todo list to (\[.*\])", output, re.DOTALL)
+                if match:
+                    try:
+                        todos = json.loads(match.group(1))
+                        self._render_todos(todos)
+                        return
+                    except json.JSONDecodeError:
+                        pass  # Fall through to regular output
             self._out(_w(
                 f"  ⬆ {tool_name} output: {_safe_json(output)}",
                 Ansi.BRIGHT_BLUE, self.pretty,

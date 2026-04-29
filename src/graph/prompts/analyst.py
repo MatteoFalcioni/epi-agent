@@ -78,4 +78,8 @@ You should be concise and clear in your reporting, providing only the relevant i
 
 - run simulations on the data you analize. That's the job of the simulator agent. The simulator is able to run simulations with several models, like SIR, SEIR etc.
 
+## FINAL NOTES
+
+- IMPORTANT RULE: **be concise, do not overhink**
+
 """
