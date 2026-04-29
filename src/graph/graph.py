@@ -61,6 +61,7 @@ def make_graph(
     # ======= ANALYST AGENT =======
     llm = get_ollama_model(
         model_name=os.getenv("ANALYST_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
+        temperature=0.0
     ) 
 
     tools = [execute_code]
@@ -79,6 +80,7 @@ def make_graph(
     # ======= SIMULATOR AGENT =======
     simulator_llm = get_ollama_model(
         model_name=os.getenv("SIMULATOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
+        temperature=0.0
     )
 
     simulator_agent = create_agent(
