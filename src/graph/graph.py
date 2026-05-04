@@ -52,7 +52,8 @@ def make_graph(
 
     supervisor_agent = create_agent(
         model=supervisor_llm,
-        tools=[assign_to_analyst, assign_to_simulator],
+        tools = [assign_to_analyst],
+        #tools=[assign_to_analyst, assign_to_simulator],
         system_prompt=supervisor_prompt,
         name="agent_supervisor",
         state_schema=MyState
