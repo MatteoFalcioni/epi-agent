@@ -21,7 +21,7 @@ from .tools.simulator import (
 )
 from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
-from .prompts.simulator import simulator_prompt
+#from .prompts.simulator import simulator_prompt
 
 
 load_dotenv()
@@ -64,7 +64,7 @@ def make_graph(
         temperature=0.0
     ) 
 
-    tools = [execute_code]
+    tools = [execute_code, fit_sir_from_csv, fit_seir_from_csv, fit_gammasir_from_csv, compute_incidence]  # Analyst can also run simulations if needed
 
     analyst_agent = create_agent(
         model=llm,
@@ -77,7 +77,7 @@ def make_graph(
         ],
     )
 
-    # ======= SIMULATOR AGENT =======
+    '''# ======= SIMULATOR AGENT =======
     simulator_llm = get_ollama_model(
         model_name=os.getenv("SIMULATOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
         temperature=0.0
@@ -90,7 +90,7 @@ def make_graph(
         name="simulator_agent",
         state_schema=MyState,
         middleware=[TodoListMiddleware()],  # Simulator has access to filesystem as well
-    )
+    )'''
 
     # ======= NODES =======
     # -------ANALYST AGENT NODE-------
@@ -102,7 +102,7 @@ def make_graph(
         """
         print("[GRAPH] Entering analyst_agent_node")
         # invoke the agent
-        result = analyst_agent.invoke(state["messages"][-1])
+        result = analyst_agent.invoke(state["messages"])
 
         # get results
         last_msg = result["messages"][-1]
@@ -122,7 +122,7 @@ def make_graph(
             goto="supervisor",
         )
 
-    # -------SIMULATOR AGENT NODE-------
+    '''# -------SIMULATOR AGENT NODE-------
     def simulator_agent_node(
         state: MyState,
     ) -> Command[Literal["supervisor"]]:
@@ -141,7 +141,7 @@ def make_graph(
                 "files": files,  
             },
             goto="supervisor",
-        )
+        )'''
     
     # ======= GRAPH  BUILDING =======
 
@@ -151,7 +151,7 @@ def make_graph(
         "supervisor", supervisor_agent
     )  # , destinations=("data_analyst", "simulator", END)
     builder.add_node("analyst", analyst_agent_node)
-    builder.add_node("simulator", simulator_agent_node)
+    #builder.add_node("simulator", simulator_agent_node)
     builder.add_edge(
         START, "supervisor"
     )  # since we have Command(goto=...) everywhere, we do not need other edges.
