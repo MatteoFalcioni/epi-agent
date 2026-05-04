@@ -73,7 +73,9 @@ You MUST follow strictly the instructions given by the supervisor agent and perf
 
 ## STEP 4(optional): Running simulations and making predictions
 
-ONLY IF task that the supervisor agent has given you concerns simulations or predictions.
+ONLY IF the task that the supervisor agent has given you concerns simulations or predictions.
+You MUST NOT run any simulation or make any prediction if the supervisor agent does not explicitly requires it.
+
 Depending on the kind of task, you will need to perform different actions:
 
 ### Type A: fit data from a CSV file to an epidemiological model
