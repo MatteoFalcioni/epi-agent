@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
 
-from delay_utilities import *
+from .delay_utilities import discrete_gamma, dirac_delta, propagate_forward
 
 ### EPIDEMIOLOGICAL MODELS ###
 
