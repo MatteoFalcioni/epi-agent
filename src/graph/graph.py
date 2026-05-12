@@ -47,7 +47,8 @@ def make_graph(
 
     # ======= SUPERVISOR =======
     supervisor_llm = get_ollama_model(
-        model_name=os.getenv("SUPERVISOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
+        model_name=os.getenv("SUPERVISOR_MODEL", "qwen3.5:27b"),
+        temperature = 0.0  # default to qwen3.5:27b if not set
     ) 
 
     supervisor_agent = create_agent(
@@ -62,7 +63,7 @@ def make_graph(
     # ======= ANALYST AGENT =======
     llm = get_ollama_model(
         model_name=os.getenv("ANALYST_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
-        temperature=0.0
+        temperature = 0.0
     ) 
 
     tools = [execute_code, fit_sir_from_csv, fit_seir_from_csv, fit_gammasir_from_csv, compute_incidence]  # Analyst can also run simulations if needed
@@ -95,7 +96,36 @@ def make_graph(
 
     # ======= NODES =======
     # -------ANALYST AGENT NODE-------
-    def analyst_agent_node(
+
+    async def analyst_agent_node(
+        state: MyState,
+    ) -> Command[Literal["supervisor"]]:
+        """
+        Main node of the graph.
+        """
+        print("[GRAPH] Entering analyst_agent_node")
+        # invoke the agent
+        result = await analyst_agent.ainvoke({'messages' : state["messages"]})
+
+        # get results
+        last_msg = result["messages"][-1]
+        code_logs = result.get("code_logs", [])
+        todos = result.get("todos", [])
+        files = result.get("files", [])  # also updating filesytem middleware if there are any file updates
+
+        # Propagate subagent's updates in the general state and route back to the supervisor for the next iteration.
+        # NOTE: if you do not update todos here, the todos are not generally updated! 
+        return Command(
+            update={
+                "messages": [HumanMessage(content=last_msg.content)],  # update messages with the last message content
+                "code_logs" : code_logs,
+                "todos": todos,  # propagate the todos
+                "files": files,  # propagate file updates to the filesystem middleware
+            },
+            goto="supervisor",
+        )
+    
+    '''def analyst_agent_node(
         state: MyState,
     ) -> Command[Literal["supervisor"]]:
         """
@@ -121,7 +151,7 @@ def make_graph(
                 "files": files,  # propagate file updates to the filesystem middleware
             },
             goto="supervisor",
-        )
+        )'''
 
     '''# -------SIMULATOR AGENT NODE-------
     def simulator_agent_node(
