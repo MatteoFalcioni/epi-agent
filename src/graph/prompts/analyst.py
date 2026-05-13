@@ -43,6 +43,9 @@ You can use the python_executor tool to read the CSV file and explore its struct
 
 This will help you understand what kind of analysis you can perform on the data.
 
+Unless explicitely asked by the supervisor, always consider confirmed cases of a disease and never the suspected one, whenever this informations are available.
+
+
 ## Step 2: Annotating your findings 
 
 After the exploration phase, you will annotate any relevant findings using your executor tools.
@@ -62,6 +65,7 @@ After these first steps, you can finally perform data analysis to extract insigh
 In order to do this, you must use the python_executor tool to execute python code that performs data analysis for the task at hand.
 
 You MUST follow strictly the instructions given by the supervisor agent and perform only the analysis that is strictly related to the task at hand.
+
 
 ### Step 3 notes: General Instructions for Data Analysis
 
