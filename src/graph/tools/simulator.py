@@ -7,512 +7,393 @@ from datetime import datetime, timezone
 from langchain_core.messages import ToolMessage
 from langchain.tools import ToolRuntime
 import json
-from .models.sir import fit
-from .utils import load_incidence_from_csv
 
-DEFAULT_SIR_PARAMETERS = {
-    "initial_beta": 1.0,
-    "initial_mu": 0.2,
-    "initial_detection_fraction": 0.1,
+
+import pandas as pd
+import models
+import metrics
+import importlib
+import pkgutil
+
+
+REQUIRED_ATTRS = {
+    "name",
+    "PARAMETER_FIELDS",
+    "EXPLAIN_PARAMETERS",
+    "fit_parameters_defaults",
+    "fixed_parameters_defaults",
+    "bounds",
+    "incidence",
+    "fit_model"
 }
 
-DEFAULT_SEIR_PARAMETERS = {
-    "initial_beta": 1.0,
-    "initial_gamma": 0.2,
-    "initial_mu": 0.2,
-    "initial_detection_fraction": 0.1,
-}
 
-DEFAULT_GAMMASIR_PARAMETERS = {
-    "initial_beta": 1.0,
-    "initial_infectious_period": 5.0,
-    "initial_infectious_std": 3.0,
-    "initial_detection_fraction": 0.1,
-}
 
-# model-specific parameter schemas for type safety and validation
-class SIRParameters(TypedDict, total=False):
-    initial_beta: NotRequired[float]
-    initial_mu: NotRequired[float]
-    initial_detection_fraction: NotRequired[float]
+'''def _load_model_module(model: str):
+    """Import models.<MODEL> and validate it exposes the full contract."""
+    mod = importlib.import_module(f"models.{model}", package=__package__)
+    missing = REQUIRED_ATTRS - set(dir(mod))
+    if missing:
+        raise ImportError(f"Model '{model}' is missing: {missing}")
+    return mod'''
 
-class SEIRParameters(TypedDict, total=False):
-    initial_beta: NotRequired[float]
-    initial_gamma: NotRequired[float]
-    initial_mu: NotRequired[float]
-    initial_detection_fraction: NotRequired[float]
 
-# TODO: sistema questi parametri per il GAMMASIR, e controlla SEIR 
-class GammaSIRParameters(TypedDict, total=False):
-    initial_beta: NotRequired[float]
-    initial_infectious_period: NotRequired[float]
-    initial_infectious_std: NotRequired[float]
-    initial_detection_fraction: NotRequired[float]
 
-def _merge_with_defaults(defaults: dict[str, float], overrides: dict[str, float] | None) -> dict[str, float]:
+def _load_model_module(model: str):
+    """Import models.<MODEL> and validate it exposes the full contract."""
+
+    # trova il nome reale del modulo confrontando in lowercase
+    real_name = next(
+        (m.name for m in pkgutil.iter_modules(models.__path__)
+         if m.name.lower() == model.lower()),
+        None
+    )
+
+    if real_name is None:
+        raise ImportError(f"No module found for model '{model}'")
+
+    mod = importlib.import_module(f"models.{real_name}", package=__package__)
+
+    missing = REQUIRED_ATTRS - set(dir(mod))
+    if missing:
+        raise ImportError(f"Model '{model}' is missing: {missing}")
+
+    return mod
+
+
+def _merge_with_defaults(defaults: dict, user_params: dict | None) -> dict:
+    if user_params is None:
+        return defaults.copy()
+    invalid = set(user_params) - set(defaults)
+    if invalid:
+        raise ValueError(f"Unknown parameters: {invalid}. Valid: {set(defaults)}")
+    return {**defaults, **user_params}
+
+
+
+'''def _build_models_schema(available_models: list[str]) -> dict:
     """
-    Merge user-provided parameter overrides with model defaults.
-    User overrides take precedence, but any missing fields are filled from defaults.
-    In this way the agent can provide only a subset of parameters and rely on defaults for the rest.
+    Load every model module and collect their PARAMETER_FIELDS + defaults.
+    Returns a nested dict the LLM can read from the docstring.
     """
-    merged = defaults.copy()
-    if overrides:
-        merged.update(overrides)
-    return merged
+    schema = {}
+    for model_name in available_models:
+        mod = _load_model_module(model_name)
+        schema[model_name] = {
+            field: {
+                "type": typ.__name__,
+                "default": mod.fit_parameters_defaults[field] if field in mod.fit_parameters_defaults else mod.fixed_parameters_defaults[field],
+                "meaning": mod.EXPLAIN_PARAMETERS[field]
+            }
+            for field, typ in mod.PARAMETER_FIELDS.items()
+        }
+    return schema'''
 
-def _get_model_spec(
-    model: Literal["SIR", "SEIR", "GAMMASIR"],
-    metric_name: Literal["rmse"],
-    fit_incidence,
-    model_parameters: SIRParameters | SEIRParameters | GammaSIRParameters | None,
-):
+
+
+def _build_models_schema(available_models: list[str]) -> tuple[dict, dict]:
     """
-    Build a model-specific fitting specification used by `_fit_model_from_csv`.
-
-    This helper centralizes all model-dependent pieces of the fitting pipeline so
-    the public tools can stay thin and consistent.
-
-    Args:
-        model: Epidemiologic model identifier. Supported values are
-            "SIR", "SEIR", and "GAMMASIR".
-        metric_name: Optimization metric name. Currently only "rmse" is
-            supported.
-        fit_incidence: Preprocessed incidence series used for fitting.
-            The first element is also used to derive an initial condition
-            (I0 or E0/I0 depending on model).
-        model_parameters: Optional per-model initial-guess overrides.
-            Missing fields are filled from model defaults.
-
-    Returns:
-        dict: A model specification with these required keys:
-            - incidence_fn: callable used by the optimizer to generate incidence.
-            - metric_fn: objective callable (RMSE).
-            - fixed_args: extra positional args passed to incidence_fn.
-            - initial_guess: ordered parameter vector for optimization.
-            - result_fields: tuple of names aligned 1:1 with optimum.x order.
-            - derived_fields: callable(values)->dict for derived outputs (e.g., R0).
-
-    Notes:
-        - `result_fields` exists to map optimizer output vectors to stable,
-          explicit names in the final JSON response.
-        - `derived_fields` is separated so model-specific derived quantities
-          (like R0 definitions) are defined in one place.
-        - `initial_detection_fraction` must be > 0 for all models because it is
-          used to derive initial conditions from observed incidence.
-
-    Model parameter semantics:
-        SIR:
-            initial_beta, initial_mu, initial_detection_fraction
-        SEIR:
-            initial_beta, initial_gamma, initial_mu, initial_detection_fraction
-        GAMMASIR:
-            initial_beta, initial_infectious_period, initial_infectious_std,
-            initial_detection_fraction
+    Load every model module and collect their PARAMETER_FIELDS + defaults.
+    Returns two nested dicts the LLM can read from the docstring:
+    - fit_schema: parameters tunable at fit time
+    - fixed_schema: fixed parameters set at model construction
     """
-    if metric_name != "rmse":
-        raise ValueError(f"Unsupported metric: {metric_name}")
+    fit_schema = {}
+    fixed_schema = {}
 
-    from .models.models import gammasir_incidence, seir_incidence, sir_incidence
-    from .models.sir import rmse
+    for model_name in available_models:
+        mod = _load_model_module(model_name)
 
-    if model == "SIR":
-        params = _merge_with_defaults(DEFAULT_SIR_PARAMETERS, model_parameters)
-        detection_fraction = params["initial_detection_fraction"]
-        if detection_fraction <= 0:
-            raise ValueError("initial_detection_fraction must be > 0")
-
-        return {
-            "incidence_fn": sir_incidence,
-            "metric_fn": rmse,
-            "fixed_args": (),
-            "initial_guess": [
-                params["initial_beta"],
-                params["initial_mu"],
-                fit_incidence[0] / detection_fraction,
-                detection_fraction,
-            ],
-            "result_fields": ("beta", "mu", "I0", "detection_fraction"),
-            "derived_fields": lambda values: {
-                "R0": float(values[0] / values[1]) if values[1] > 0 else None,
-            },
+        fit_schema[model_name] = {
+            field: {
+                "type": typ.__name__,
+                "default": mod.fit_parameters_defaults[field],
+                "meaning": mod.EXPLAIN_PARAMETERS[field],
+            }
+            for field, typ in mod.PARAMETER_FIELDS.items()
+            if field in mod.fit_parameters_defaults
         }
 
-    if model == "SEIR":
-        params = _merge_with_defaults(DEFAULT_SEIR_PARAMETERS, model_parameters)
-        detection_fraction = params["initial_detection_fraction"]
-        if detection_fraction <= 0:
-            raise ValueError("initial_detection_fraction must be > 0")
-
-        return {
-            "incidence_fn": seir_incidence,
-            "metric_fn": rmse,
-            "fixed_args": (),
-            "initial_guess": [
-                params["initial_beta"],
-                params["initial_gamma"],
-                params["initial_mu"],
-                fit_incidence[0] / detection_fraction,
-                fit_incidence[0] / detection_fraction,
-                detection_fraction,
-            ],
-            "result_fields": ("beta", "gamma", "mu", "E0", "I0", "detection_fraction"),
-            "derived_fields": lambda values: {
-                "R0": float(values[0] / values[2]) if values[2] > 0 else None,
-            },
+        fixed_schema[model_name] = {
+            field: {
+                "type": typ.__name__,
+                "default": mod.fixed_parameters_defaults[field],
+                "meaning": mod.EXPLAIN_PARAMETERS[field],
+            }
+            for field, typ in mod.PARAMETER_FIELDS.items()
+            if field in mod.fixed_parameters_defaults
         }
 
-    params = _merge_with_defaults(DEFAULT_GAMMASIR_PARAMETERS, model_parameters)
-    detection_fraction = params["initial_detection_fraction"]
-    if detection_fraction <= 0:
-        raise ValueError("initial_detection_fraction must be > 0")
+    return fit_schema, fixed_schema
 
-    return {
-        "incidence_fn": gammasir_incidence,
-        "metric_fn": rmse,
-        "fixed_args": (1 / 24.0,),
-        "initial_guess": [
-            params["initial_beta"],
-            params["initial_infectious_period"],
-            params["initial_infectious_std"],
-            fit_incidence[0] / detection_fraction,
-            detection_fraction,
-        ],
-        "result_fields": ("beta", "infectious_period", "infectious_std", "I0", "detection_fraction"),
-        "derived_fields": lambda values: {
-            "R0": float(values[0] * values[1]),
-        },
-    }
 
-def _fit_model_from_csv(
-    runtime: ToolRuntime,
-    model: Literal["SIR", "SEIR", "GAMMASIR"],
-    model_parameters: SIRParameters | SEIRParameters | GammaSIRParameters | None,
-    csv_path: str,
-    metric: Literal["rmse"] = "rmse",
-    population: int = 800000,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    rolling_window: int = 7,
-) -> Command:
+def make_fit_tool(models_list: list[str]):
     """
-    Shared fitting pipeline for all model-specific public tools.
+    Build and return a LangGraph @tool with:
+      - model: Literal[...] auto-built from available_models
+      - model_parameters: dict | None  (schema injected into docstring)
 
-    This is the core orchestrator that ties together data loading, model specification,
-    optimization, and result formatting. All three public tools (fit_sir_from_csv,
-    fit_seir_from_csv, fit_gammasir_from_csv) delegate to this single implementation
-    to avoid code duplication.
+    Call once at startup:
+        fit_model_from_csv = make_fit_tool(["SIR", "SEIR", "GAMMASIR"])
+    """
+    
+    fit_schema, fixed_schema = _build_models_schema(models_list)
+    fit_schema_json = json.dumps(fit_schema, indent=2)
+    fixed_schema_json = json.dumps(fixed_schema, indent=2)
 
-    Args:
+
+    @tool
+    def fit_and_forecast(runtime: ToolRuntime,
+                        start_date : str ,
+                        csv_path: Annotated[str, "Path to the CSV file containing the full data range of incidence data before start date."],
+                        model_name : Annotated[str, "Name of the epidemiological model to fit."] = "SIR",
+                        col_name : Annotated[str, "Name of the column in the CSV file containing incidence data."] = "incidence",
+                        model_initial_parameters: dict | None = None,
+                        model_fixed_parameters: dict | None = None,
+                        metric: Literal["rmse"] = "rmse",
+                        prediction_days : Annotated[int, "Number of days to predict."] = 0,
+                        rolling_window : int = 7 
+                        ) -> Command:
+    
+        """Fit an epidemiological model to incidence data loaded from a CSV file and 
+        compute predicted incidence values using the fitted epidemiological model.
+
+        Before calling, use get_model_info(model) to discover the right model parameters. You only need to pass the ones you want to override,
+        the rest use their defaults.
+
+        Args:
         runtime: Tool runtime context (used for message routing and call tracking).
-        model: Model identifier ("SIR", "SEIR", or "GAMMASIR"). Determines which
+        start_date: Start date for the forecast in YYYY-MM-DD format.
+        csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and "incidence" column.
+        model_name: Model identifier string. Determines which
             model spec and parameter schema will be used.
-        model_parameters: Optional per-model initial guesses. Missing fields are
-            filled from model defaults via _get_model_spec.
-        csv_path: Path to CSV file with datetime index and "incidence" column.
+        model_initial_parameters: Optional per-model initial guesses. Missing fields are
+            filled from model defaults. This argument is inferred from get_model_info output, so you can just pass the fields you want to override.
+        model_fixed_parameters: Optional per-model fixed parameters. These are not fitted but are used in the simulation.
         metric: Metric name for optimization. NOTE: Currently only "rmse" is supported.
-        population: Total population (N) used in model dynamics.
-        start_date: Optional date filter (inclusive). If provided, incidence data
-            before this date is excluded.
-        end_date: Optional date filter (inclusive). If provided, incidence data
-            after this date is excluded.
+        prediction_days: Number of days to predict forward.
+        col_name: Name of the column in the CSV file containing incidence data (default: "incidence").
         rolling_window: Window size for rolling average smoothing (default: 7 days).
 
     Returns:
         Command: Result command with two updates:
             - "messages": ToolMessage with JSON-serialized result_dict.
             - "simulations": list containing result_dict for state propagation.
-
-    Result dict schema:
-        - timestamp: ISO 8601 UTC timestamp of fitting.
-        - model: Fitted model identifier.
-        - csv_path: Input CSV path (for provenance tracking).
-        - <model-specific fields>: e.g., beta, mu, I0, detection_fraction (SIR).
-        - <derived fields>: e.g., R0 (from result_fields & derived_fields spec).
-        - rmse: Optimizer metric value.
-        - n_points: Number of data points used in fitting.
-        - success: Boolean success flag from scipy.optimize.minimize.
-        - message: Optimizer message string.
-        - predicted_incidence: Fitted model incidence values.
-        - observed_incidence: Preprocessed input incidence values.
-
-    Workflow:
-        1. Load and preprocess incidence data via load_incidence_from_csv.
-        2. Fetch model spec (functions, parameters, result schema) via _get_model_spec.
-        3. Run scipy optimizer with the incidence function and metric.
-        4. Unpack optimizer result and compute derived quantities (e.g., R0).
-        5. Return Command with results routed to state.
     """
-    if population <= 0:
-        raise ValueError("population must be > 0")
-    if rolling_window <= 0:
-        raise ValueError("rolling_window must be > 0")
+        
 
-    fit_incidence = load_incidence_from_csv(
-        csv_path=csv_path,
-        start_date=start_date,
-        end_date=end_date,
-        rolling_window=rolling_window,
-    )
+        try:
+            #model = models.available_models[model_name]
+            model = _load_model_module(model_name)
+        except KeyError:
+            return {'Message' : f'Error, no model named {model_name} available in the models/ folder.'}
 
-    spec = _get_model_spec(model, metric, fit_incidence, model_parameters)
-    incidence_fn = spec["incidence_fn"]
-    metric_fn = spec["metric_fn"]
-    initial_guess = spec["initial_guess"]
-    fixed_args = (population, *spec["fixed_args"])
+        try:
+            metric = metrics.available_metrics[metric].metric
+        except KeyError:
+            return {'Message' : f'Error, no metric named {metric} available in the metrics/ folder.'}
 
-    optimum = fit(
-        incidence_fn,
-        metric_fn,
-        fit_incidence,
-        initial_guess=initial_guess,
-        fixed_args=fixed_args,
-        verbose=False,
-    )
+        # Load dataset.
+        
+        df = pd.read_csv(csv_path, index_col = 0, parse_dates = True)
+        
+        # Cast start_date to datetime. 
+        start_date = pd.to_datetime(start_date)
+        print(f"Start date: {start_date}")
 
-    predicted_incidence = incidence_fn(optimum.x, (0.0, len(fit_incidence)), *fixed_args)
-    fit_metric = metric_fn(optimum.x, (0.0, len(fit_incidence)), incidence_fn, fixed_args, fit_incidence)
+        # Cast simulation simulation to Timedelta and get end_date. 
+        sim_timedelta = pd.Timedelta(days=prediction_days)
+        end_date = start_date + sim_timedelta 
+        
+        # Check that start and end of fit/simulation are within bounds.
+        if (start_date <= df.index.min()) or (start_date  >= df.index.max()):
+            return {'Message' : f'Error, start date out of data range.'}
+            
+        # Compute overall mean and standard deviation to compute threshold.
+        global_mean = df[col_name].to_numpy().mean()
+        global_std  = df[col_name].to_numpy().std()
+        #global_std = 0
 
-    fitted_values = [float(value) for value in optimum.x]
-    result_dict = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "model": model,
-        "csv_path": csv_path,
-        **dict(zip(spec["result_fields"], fitted_values)),
-        **spec["derived_fields"](fitted_values),
-        "rmse": float(fit_metric),
-        "n_points": int(len(fit_incidence)),
-        "success": bool(optimum.success),
-        "message": str(optimum.message),
-        "predicted_incidence": [float(value) for value in predicted_incidence],
-        "observed_incidence": [float(value) for value in fit_incidence],
-    }
+        threshold = global_mean + global_std
+        
+        df['smooth'] = df[col_name].rolling(rolling_window, 
+                                    center = False, 
+                                    min_periods = 1).mean()
+        
+        # Check if the user asked for prediction during an outbreak.
+        if df.loc[start_date].smooth < threshold:
+            return {'Message' : f'No epidemic increase in the incidence detected at required time.'}
 
-    return Command(
-        update={
-            "messages": [ToolMessage(content=json.dumps(result_dict), tool_call_id=runtime.tool_call_id)],
-            "simulations": [result_dict],
+
+        df = df[df.index <= start_date]
+        # If we are here it means an epidemic is taking place.
+        # We use as the start of the fitting procedure a point 2 weeks before
+        # the crossing of the alert level.
+        closest_xing = df[(df.smooth >= threshold) 
+                        & (df.smooth.shift(1) < threshold)].index[-1]
+        fit_begin = closest_xing - pd.Timedelta(days = 14) 
+
+        # Extract the data to fit on.
+        
+        df_fit = df[(df.index >= fit_begin) & (df.index <= start_date)]
+
+        fit_incidence = df_fit.smooth.to_numpy()
+
+
+
+        fit = model.fit_model(fit_incidence, metric,
+                            model_initial_parameters, model_fixed_parameters)
+        
+
+        
+        sim_incidence, dt_index = model.incidence(fit_begin, end_date, 
+                                        fit['fitted_parameters'])
+        
+        fit_parameters = {k: (float(v) if hasattr(v, 'item') else v) for k, v in fit['fitted_parameters'].items()}
+        predicted_incidence_list = [float(value) for value in sim_incidence[14:]]
+        incidence_dates = [str(date.date()) for date in dt_index[14:]]
+
+        result_dict = {
+#            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "model": model_name,
+            "csv_path": csv_path,
+            "parameters": fit_parameters,
+            'R0': float(fit['R0']),
+            "rmse": float(fit['metric_minimum']),
+            "success": bool(fit['success']),
+            "message": str(fit['status']),
+            "predicted_incidence": predicted_incidence_list,
+            "predicted incidence dates" : incidence_dates,
+            "n_days_predicted": prediction_days,
         }
-    )
-
-@tool
-def fit_sir_from_csv(
-    runtime: ToolRuntime,
-    csv_path: Annotated[str, "Path to the CSV file containing incidence data."],
-    model_parameters: SIRParameters | None = None,
-    metric: Annotated[Literal["rmse"], "The metric function to use for fitting."] = "rmse",
-    population: Annotated[int, "Total population size (N) for the model."] = 800000,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    rolling_window: int = 7,
-) -> Command:
-    """
-    Fit SIR model parameters to incidence data loaded from a CSV file.
-
-    Args:
-    - model_parameters: Initial guesses for the SIR parameters.
-    - csv_path: Path to the CSV file containing incidence data.
-    - metric: The metric function to use for fitting (default: "rmse").
-    - population: Total population size (N) for the model.
-    - start_date: Optional start date to filter the CSV data (inclusive).
-    - end_date: Optional end date to filter the CSV data (inclusive).
-    - rolling_window: Window size for rolling average smoothing of incidence data (default: 7).
-    """
-    return _fit_model_from_csv(
-        runtime=runtime,
-        model="SIR",
-        model_parameters=model_parameters,
-        csv_path=csv_path,
-        metric=metric,
-        population=population,
-        start_date=start_date,
-        end_date=end_date,
-        rolling_window=rolling_window,
-    )
-
-@tool
-def fit_seir_from_csv(
-    runtime: ToolRuntime,
-    csv_path: Annotated[str, "Path to the CSV file containing incidence data."],
-    model_parameters: SEIRParameters | None = None,
-    metric: Annotated[Literal["rmse"], "The metric function to use for fitting."] = "rmse",
-    population: Annotated[int, "Total population size (N) for the model."] = 800000,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    rolling_window: int = 7,
-) -> Command:
-    """
-    Fit SEIR model parameters to incidence data loaded from a CSV file.
-
-    Args:
-    - model_parameters: Initial guesses for the SEIR parameters.
-    - csv_path: Path to the CSV file containing incidence data.
-    - metric: The metric function to use for fitting (default: "rmse").
-    - population: Total population size (N) for the model.
-    - start_date: Optional start date to filter the CSV data (inclusive).
-    - end_date: Optional end date to filter the CSV data (inclusive).
-    - rolling_window: Window size for rolling average smoothing of incidence data (default: 7).
-    """
-    return _fit_model_from_csv(
-        runtime=runtime,
-        model="SEIR",
-        model_parameters=model_parameters,
-        csv_path=csv_path,
-        metric=metric,
-        population=population,
-        start_date=start_date,
-        end_date=end_date,
-        rolling_window=rolling_window,
-    )
-
-@tool
-def fit_gammasir_from_csv(
-    runtime: ToolRuntime,
-    csv_path: Annotated[str, "Path to the CSV file containing incidence data."],
-    model_parameters: GammaSIRParameters | None = None,
-    metric: Annotated[Literal["rmse"], "The metric function to use for fitting."] = "rmse",
-    population: Annotated[int, "Total population size (N) for the model."] = 800000,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    rolling_window: int = 7,
-) -> Command:
-    """
-    Fit Gamma-SIR model parameters to incidence data loaded from a CSV file.
-
-    Args:
-    - model_parameters: Initial guesses for the Gamma-SIR parameters.
-    - csv_path: Path to the CSV file containing incidence data.
-    - metric: The metric function to use for fitting (default: "rmse").
-    - population: Total population size (N) for the model.
-    - start_date: Optional start date to filter the CSV data (inclusive).
-    - end_date: Optional end date to filter the CSV data (inclusive).
-    - rolling_window: Window size for rolling average smoothing of incidence data (default: 7).
-    """
-    return _fit_model_from_csv(
-        runtime=runtime,
-        model="GAMMASIR",
-        model_parameters=model_parameters,
-        csv_path=csv_path,
-        metric=metric,
-        population=population,
-        start_date=start_date,
-        end_date=end_date,
-        rolling_window=rolling_window,
-    )
 
 
-@tool
-def compute_incidence(
-    runtime: ToolRuntime,
-    model: Annotated[Literal["SIR", "SEIR", "GAMMASIR"], "The epidemiological model to use for prediction."],
-    beta: Annotated[float, "Transmission rate (beta)."],
-    mu: Annotated[float, "Recovery rate (mu) for SIR, or used as recovery rate in SEIR."],
-    detection_fraction: Annotated[float, "Detection fraction (fraction of actual cases that are detected)."],
-    population: Annotated[int, "Total population size (N)."] = 800000,
-    n_days: Annotated[int, "Number of days to predict."] = 30,
-    initial_infected: Annotated[float, "Initial number of infected individuals (I0)."] = 100.0,
-    gamma: Annotated[float | None, "Latent period rate (gamma) for SEIR model (1/incubation period)."] = None,
-    infectious_period: Annotated[float | None, "Average infectious period (days) for GAMMASIR."] = None,
-    infectious_std: Annotated[float | None, "Standard deviation of infectious period for GAMMASIR."] = None,
-) -> Command:
-    """
-    Compute predicted incidence values using a fitted epidemiological model.
-    
-    Use this tool to make predictions of future incidence values based on fitted
-    parameters from a previous model fit (SIR, SEIR, or GAMMASIR).
-    
-    Args:
-        model: The epidemiological model to use (SIR, SEIR, or GAMMASIR).
-        beta: Transmission rate (beta parameter from fitting).
-        mu: Recovery rate (mu parameter from fitting).
-        detection_fraction: Detection fraction (fraction of cases detected).
-        population: Total population size (N).
-        n_days: Number of days to predict forward.
-        initial_infected: Initial number of infected individuals (I0).
-        gamma: For SEIR model - rate of progression from exposed to infectious (1/incubation period).
-        infectious_period: For GAMMASIR model - average infectious period in days.
-        infectious_std: For GAMMASIR model - standard deviation of infectious period.
-    
-    Returns:
-        Predicted incidence values for the specified number of days.
-    """
-    from .models.models import sir_incidence, seir_incidence, gammasir_incidence
-    
-    if model == "SIR":
-        # SIR parameters: beta, mu, I0, detection_fraction
-        x = [beta, mu, initial_infected, detection_fraction]
-        t_span = (0.0, n_days)
-        predicted_incidence = sir_incidence(x, t_span, population)
-    
-    elif model == "SEIR":
-        if gamma is None:
-            return Command(
-                update={
-                    "messages": [ToolMessage(
-                        content=json.dumps({"error": "For SEIR model, 'gamma' parameter is required (rate of progression from exposed to infectious)."}),
-                        tool_call_id=runtime.tool_call_id
-                    )]
-                }
-            )
-        # SEIR parameters: beta, gamma, mu, E0, I0, detection_fraction
-        # Assume E0 = I0 initially for simplicity
-        E0 = initial_infected
-        x = [beta, gamma, mu, E0, initial_infected, detection_fraction]
-        t_span = (0.0, n_days)
-        predicted_incidence = seir_incidence(x, t_span, population)
-    
-    elif model == "GAMMASIR":
-        if infectious_period is None or infectious_std is None:
-            return Command(
-                update={
-                    "messages": [ToolMessage(
-                        content=json.dumps({"error": "For GAMMASIR model, 'infectious_period' and 'infectious_std' parameters are required."}),
-                        tool_call_id=runtime.tool_call_id
-                    )]
-                }
-            )
-        # GAMMASIR parameters: beta, T_i, sigma_i, I0, detection_fraction
-        x = [beta, infectious_period, infectious_std, initial_infected, detection_fraction]
-        t_span = (0.0, n_days)
-        predicted_incidence = gammasir_incidence(x, t_span, population)
-    
-    else:
         return Command(
             update={
-                "messages": [ToolMessage(
-                    content=json.dumps({"error": f"Unknown model: {model}"}),
-                    tool_call_id=runtime.tool_call_id
-                )]
+                "messages": [ToolMessage(content=json.dumps(result_dict), tool_call_id=runtime.tool_call_id)],
+                "simulations": [result_dict],
             }
         )
+        
+
+    docstring_suffix = f"""
+    \nmodel_name must be one of: {models_list}
+
+    model_initial_parameters per model:
+    {fit_schema_json}
+    \nmodel_fixed_parameters per model:
+    {fixed_schema_json}
+    """
     
-    # Convert to list of floats
-    predicted_incidence_list = [float(value) for value in predicted_incidence]
+    fit_and_forecast.__doc__ = (
+    fit_and_forecast.__doc__ + docstring_suffix)
+    # Inject the real schema into the docstring (done once at startup)
+    '''fit_and_forecast.__doc__ = fit_and_forecast.__doc__.format(
+        models=available_models,
+        schema=schema_json
+    )'''
+
+    return fit_and_forecast
+
+
+
+def make_model_info_tool(available_models: list[str]):
+    """
+    Build a get_model_info tool the LLM calls BEFORE fit_model_from_csv
+    to discover which parameters a model accepts.
+    """
     
-    result_dict = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "model": model,
-        "parameters": {
-            "beta": beta,
-            "mu": mu,
-            "detection_fraction": detection_fraction,
-            "population": population,
-            "n_days": n_days,
-            "initial_infected": initial_infected,
-        },
-        "predicted_incidence": predicted_incidence_list,
-        "n_days_predicted": n_days,
-    }
+
+    ModelLiteral = Literal[tuple(available_models)]  # type: ignore[valid-type]
     
-    # Add model-specific parameters
-    if model == "SEIR" and gamma is not None:
-        result_dict["parameters"]["gamma"] = gamma
-    elif model == "GAMMASIR":
-        result_dict["parameters"]["infectious_period"] = infectious_period
-        result_dict["parameters"]["infectious_std"] = infectious_std
-    
-    return Command(
-        update={
-            "messages": [ToolMessage(content=json.dumps(result_dict), tool_call_id=runtime.tool_call_id)],
-            "simulations": [result_dict],
+    @tool
+    def get_model_info(model: Annotated[str, f'Model name'] = "SIR") -> dict:
+        """
+        Return the available parameters and their defaults for a given model.
+        Always call this before fit_model_from_csv to know what you can set.
+
+        model: Model name.
+        """
+        mod = _load_model_module(model)
+        return {
+            "model": model,
+            "parameters": {
+                field: {
+                "type": typ.__name__,
+                "default": mod.fit_parameters_defaults[field] if field in mod.fit_parameters_defaults else mod.fixed_parameters_defaults[field],
+                "meaning": mod.EXPLAIN_PARAMETERS[field]
+            }
+                for field, typ in mod.PARAMETER_FIELDS.items()
+            },
         }
-    )
+
+    docstring_suffix = f"""
+    model must be one of: {available_models}
+    """
+    get_model_info.__doc__ = (
+    get_model_info.__doc__ + docstring_suffix)
+
+    return get_model_info
+
+
+
+
+
+def discover_models() -> list[str]:
+    """Trova tutti i moduli nella cartella models/ e restituisce i loro nomi."""
+    return [mod.name
+        for mod in pkgutil.iter_modules(models.__path__)
+        if not mod.name.startswith("_")  # esclude __init__, _utils, ecc.
+    ]
+
+
+
+
+def swab_result_mapper(result_string):
+    """
+    Map a swab result string to a simplified code.
+
+    Args:
+        result_string (str): Swab result string.
+
+    Returns:
+        str: Simplified code ('p' for positive, 'n' for negative, 'i' for inconclusive).
+    """
+    if 'Positivo' in result_string:
+        return 'p' # At least one positive -> Positive
+    else:
+        n_commas = result_string.count(',')
+        n_negatives = result_string.count('Negativo')
+        if n_commas == n_negatives - 1: 
+            return 'n' # All negatives -> Negative
+        return 'i'
+    
+
+@tool
+def csv_writer(runtime: ToolRuntime,
+               csv_path : Annotated[str, "Path to the CSV file to write the results to."],
+               col_name : Annotated[str, "Name of the column that has to be counted"] = "ESITO TAMPONE",
+               col_value : Annotated[str, "Value of the column to count"] = "Positivo") -> Command:
+    
+    """Create a new csv file with the daily incidence of a given value in a given column, counting from the data in the csv_path file.
+    
+    Args:
+    csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and a column with name col_name.
+    col_name: Name of the column in the CSV file to count values from (default: "ESITO TAMPONE").
+    col_value: Value of the column to count for incidence (default: "Positivo")."""
+    
+    df = pd.read_csv(csv_path, index_col = 0, parse_dates = True)
+
+    unstacked = df.groupby([pd.Grouper(freq = 'D'), col_name])['Totali Accessi'].sum().unstack(0)
+    unstacked.index = unstacked.index.map(swab_result_mapper)
+    daily_positive_swabs = unstacked.loc['p'].sum()
+
+    daily_positive_swabs = pd.DataFrame(daily_positive_swabs, columns=['incidence'])
+
+    daily_positive_swabs.to_csv('context/daily_incidence.csv')
+
+    return Command(
+            update={
+                "messages": [ToolMessage(content=json.dumps('Daily incidence data saved in context/daily_incidence.csv'), tool_call_id=runtime.tool_call_id)],
+            }
+        )
