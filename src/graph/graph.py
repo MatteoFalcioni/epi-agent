@@ -21,7 +21,6 @@ from .tools.simulator import (
 )
 from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
-#from .prompts.simulator import simulator_prompt
 
 
 load_dotenv()
@@ -54,7 +53,6 @@ def make_graph(
     supervisor_agent = create_agent(
         model=supervisor_llm,
         tools = [assign_to_analyst],
-        #tools=[assign_to_analyst, assign_to_simulator],
         system_prompt=supervisor_prompt,
         name="agent_supervisor",
         state_schema=MyState
@@ -85,20 +83,7 @@ def make_graph(
         ],
     )
 
-    '''# ======= SIMULATOR AGENT =======
-    simulator_llm = get_ollama_model(
-        model_name=os.getenv("SIMULATOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
-        temperature=0.0
-    )
 
-    simulator_agent = create_agent(
-        model=simulator_llm,
-        tools=[fit_sir_from_csv, fit_seir_from_csv, fit_gammasir_from_csv, compute_incidence],
-        system_prompt=simulator_prompt,
-        name="simulator_agent",
-        state_schema=MyState,
-        middleware=[TodoListMiddleware()],  # Simulator has access to filesystem as well
-    )'''
 
     # ======= NODES =======
     # -------ANALYST AGENT NODE-------
@@ -117,7 +102,6 @@ def make_graph(
         last_msg = result["messages"][-1]
         code_logs = result.get("code_logs", [])
         todos = result.get("todos", [])
-        files = result.get("files", [])  # also updating filesytem middleware if there are any file updates
 
         # Propagate subagent's updates in the general state and route back to the supervisor for the next iteration.
         # NOTE: if you do not update todos here, the todos are not generally updated! 
@@ -126,59 +110,10 @@ def make_graph(
                 "messages": [HumanMessage(content=last_msg.content)],  # update messages with the last message content
                 "code_logs" : code_logs,
                 "todos": todos,  # propagate the todos
-                "files": files,  # propagate file updates to the filesystem middleware
             },
             goto="supervisor",
         )
     
-    '''def analyst_agent_node(
-        state: MyState,
-    ) -> Command[Literal["supervisor"]]:
-        """
-        Main node of the graph.
-        """
-        print("[GRAPH] Entering analyst_agent_node")
-        # invoke the agent
-        result = analyst_agent.invoke({'messages' : state["messages"]})
-
-        # get results
-        last_msg = result["messages"][-1]
-        code_logs = result.get("code_logs", [])
-        todos = result.get("todos", [])
-        files = result.get("files", [])  # also updating filesytem middleware if there are any file updates
-
-        # Propagate subagent's updates in the general state and route back to the supervisor for the next iteration.
-        # NOTE: if you do not update todos here, the todos are not generally updated! 
-        return Command(
-            update={
-                "messages": [HumanMessage(content=last_msg.content)],  # update messages with the last message content
-                "code_logs" : code_logs,
-                "todos": todos,  # propagate the todos
-                "files": files,  # propagate file updates to the filesystem middleware
-            },
-            goto="supervisor",
-        )'''
-
-    '''# -------SIMULATOR AGENT NODE-------
-    def simulator_agent_node(
-        state: MyState,
-    ) -> Command[Literal["supervisor"]]:
-        """
-        Simulator node.
-        """
-        print("[GRAPH] Entering simulator_agent_node")
-
-        result = simulator_agent.invoke(state)
-        last_msg = result["messages"][-1]
-        files = result.get("files", []) # simulator has filessytem as well 
-
-        return Command(
-            update={
-                "messages": [HumanMessage(content=last_msg.content)],
-                "files": files,  
-            },
-            goto="supervisor",
-        )'''
     
     # ======= GRAPH  BUILDING =======
 
