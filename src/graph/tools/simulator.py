@@ -199,7 +199,6 @@ def make_fit_tool(models_list: list[str]):
         
         # Cast start_date to datetime. 
         start_date = pd.to_datetime(start_date)
-        print(f"Start date: {start_date}")
 
         # Cast simulation simulation to Timedelta and get end_date. 
         sim_timedelta = pd.Timedelta(days=prediction_days)
@@ -349,7 +348,7 @@ def discover_models() -> list[str]:
 
 
 
-def swab_result_mapper(result_string):
+def swab_result_mapper(result_string, col_value):
     """
     Map a swab result string to a simplified code.
 
@@ -359,36 +358,35 @@ def swab_result_mapper(result_string):
     Returns:
         str: Simplified code ('p' for positive, 'n' for negative, 'i' for inconclusive).
     """
-    if 'Positivo' in result_string:
-        return 'p' # At least one positive -> Positive
-    else:
-        n_commas = result_string.count(',')
-        n_negatives = result_string.count('Negativo')
-        if n_commas == n_negatives - 1: 
-            return 'n' # All negatives -> Negative
-        return 'i'
+    return 'p' if col_value in result_string else 'n'
     
 
 @tool
 def csv_writer(runtime: ToolRuntime,
                csv_path : Annotated[str, "Path to the CSV file to write the results to."],
-               col_name : Annotated[str, "Name of the column that has to be counted"] = "ESITO TAMPONE",
-               col_value : Annotated[str, "Value of the column to count"] = "Positivo") -> Command:
+               col_name : Annotated[str, "Name of the column that has to be counted"] = 'ESITO TAMPONE',
+               col_value : Annotated[str, "Value of the column to count"] = 'Positivo') -> Command:
     
     """Create a new csv file with the daily incidence of a given value in a given column, counting from the data in the csv_path file.
     
     Args:
     csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and a column with name col_name.
-    col_name: Name of the column in the CSV file to count values from (default: "ESITO TAMPONE").
-    col_value: Value of the column to count for incidence (default: "Positivo")."""
+    col_name: Name of the column in the CSV file to count values from.
+    col_value: Value of the column to count for incidence."""
     
     df = pd.read_csv(csv_path, index_col = 0, parse_dates = True)
 
     unstacked = df.groupby([pd.Grouper(freq = 'D'), col_name])['Totali Accessi'].sum().unstack(0)
-    unstacked.index = unstacked.index.map(swab_result_mapper)
+    unstacked.index = unstacked.index.map(lambda s: 'p' if col_value in s else 'n')
     daily_positive_swabs = unstacked.loc['p'].sum()
 
-    daily_positive_swabs = pd.DataFrame(daily_positive_swabs, columns=['incidence'])
+    try:
+        daily_positive_swabs = pd.DataFrame(daily_positive_swabs, columns=['incidence'])
+
+    except ValueError as e:
+        daily_positive_swabs = unstacked.loc['p']
+        daily_positive_swabs = pd.DataFrame(daily_positive_swabs)
+        
 
     daily_positive_swabs.to_csv('context/daily_incidence.csv')
 
