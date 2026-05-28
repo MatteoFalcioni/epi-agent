@@ -71,7 +71,7 @@ About `model_parameters`:
 - If you need a parameter belonging to the socio-economic area, just take the one that fits best with the city of Bologna. 
 
 Therefore, your substeps will be: 
-- i. starting from the existing data, prepare a CSV file with the required structure (if not already available) by using the python_executor tool. Ensure the incidence column is named incidence.
+- i. starting from the existing data, prepare a CSV file with the required structure (if not already available) by using the csv_writer tool.
 
 - ii. use the fitting tool to fit the model and find the best fitting parameters
 
