@@ -55,7 +55,7 @@ def get_ollama_model(
     model = ChatOllama(
         model=model_name,
         temperature=temperature,
-        reasoning=reasoning,
+        reasoning=reasoning
     )
 
     return model

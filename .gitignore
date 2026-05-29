@@ -4,3 +4,8 @@ __cpython__/
 __pycache__/
 checkpoints.*
 *data*
+agent_outputs/
+context/
+input_prompt.txt
+risultato_fit.txt
+

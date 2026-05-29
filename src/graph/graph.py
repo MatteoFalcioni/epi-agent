@@ -14,14 +14,13 @@ from .state import MyState
 from .tools.handoffs import assign_to_analyst, assign_to_simulator
 from .tools.python_executor import execute_code
 from .tools.simulator import (
-    fit_gammasir_from_csv,
-    fit_seir_from_csv,
-    fit_sir_from_csv,
-    compute_incidence,
+    discover_models,
+    csv_writer,
+    make_fit_tool,
+    make_model_info_tool
 )
 from .prompts.analyst import analyst_prompt
 from .prompts.supervisor import supervisor_prompt
-from .prompts.simulator import simulator_prompt
 
 
 load_dotenv()
@@ -47,12 +46,13 @@ def make_graph(
 
     # ======= SUPERVISOR =======
     supervisor_llm = get_ollama_model(
-        model_name=os.getenv("SUPERVISOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
+        model_name=os.getenv("SUPERVISOR_MODEL", "qwen3.5:27b"),
+        temperature = 0.0  # default to qwen3.5:27b if not set
     ) 
 
     supervisor_agent = create_agent(
         model=supervisor_llm,
-        tools=[assign_to_analyst, assign_to_simulator],
+        tools = [assign_to_analyst],
         system_prompt=supervisor_prompt,
         name="agent_supervisor",
         state_schema=MyState
@@ -61,10 +61,16 @@ def make_graph(
     # ======= ANALYST AGENT =======
     llm = get_ollama_model(
         model_name=os.getenv("ANALYST_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
-        temperature=0.0
+        temperature = 0.0
     ) 
 
-    tools = [execute_code]
+    AVAILABLE_MODELS = discover_models()
+
+    # Both tools are built ONCE — docstrings are static from here on
+    fit_and_forecast = make_fit_tool(AVAILABLE_MODELS)
+    get_model_info = make_model_info_tool(AVAILABLE_MODELS)
+
+    tools = [execute_code, csv_writer, get_model_info, fit_and_forecast]
 
     analyst_agent = create_agent(
         model=llm,
@@ -77,24 +83,12 @@ def make_graph(
         ],
     )
 
-    # ======= SIMULATOR AGENT =======
-    simulator_llm = get_ollama_model(
-        model_name=os.getenv("SIMULATOR_MODEL", "qwen3.5:27b"),  # default to qwen3.5:27b if not set
-        temperature=0.0
-    )
 
-    simulator_agent = create_agent(
-        model=simulator_llm,
-        tools=[fit_sir_from_csv, fit_seir_from_csv, fit_gammasir_from_csv, compute_incidence],
-        system_prompt=simulator_prompt,
-        name="simulator_agent",
-        state_schema=MyState,
-        middleware=[TodoListMiddleware()],  # Simulator has access to filesystem as well
-    )
 
     # ======= NODES =======
     # -------ANALYST AGENT NODE-------
-    def analyst_agent_node(
+
+    async def analyst_agent_node(
         state: MyState,
     ) -> Command[Literal["supervisor"]]:
         """
@@ -102,13 +96,12 @@ def make_graph(
         """
         print("[GRAPH] Entering analyst_agent_node")
         # invoke the agent
-        result = analyst_agent.invoke(state["messages"][-1])
+        result = await analyst_agent.ainvoke({'messages' : state["messages"]})
 
         # get results
         last_msg = result["messages"][-1]
         code_logs = result.get("code_logs", [])
         todos = result.get("todos", [])
-        files = result.get("files", [])  # also updating filesytem middleware if there are any file updates
 
         # Propagate subagent's updates in the general state and route back to the supervisor for the next iteration.
         # NOTE: if you do not update todos here, the todos are not generally updated! 
@@ -117,31 +110,10 @@ def make_graph(
                 "messages": [HumanMessage(content=last_msg.content)],  # update messages with the last message content
                 "code_logs" : code_logs,
                 "todos": todos,  # propagate the todos
-                "files": files,  # propagate file updates to the filesystem middleware
             },
             goto="supervisor",
         )
-
-    # -------SIMULATOR AGENT NODE-------
-    def simulator_agent_node(
-        state: MyState,
-    ) -> Command[Literal["supervisor"]]:
-        """
-        Simulator node.
-        """
-        print("[GRAPH] Entering simulator_agent_node")
-
-        result = simulator_agent.invoke(state)
-        last_msg = result["messages"][-1]
-        files = result.get("files", []) # simulator has filessytem as well 
-
-        return Command(
-            update={
-                "messages": [HumanMessage(content=last_msg.content)],
-                "files": files,  
-            },
-            goto="supervisor",
-        )
+    
     
     # ======= GRAPH  BUILDING =======
 
@@ -151,7 +123,7 @@ def make_graph(
         "supervisor", supervisor_agent
     )  # , destinations=("data_analyst", "simulator", END)
     builder.add_node("analyst", analyst_agent_node)
-    builder.add_node("simulator", simulator_agent_node)
+    #builder.add_node("simulator", simulator_agent_node)
     builder.add_edge(
         START, "supervisor"
     )  # since we have Command(goto=...) everywhere, we do not need other edges.
