@@ -8,4 +8,5 @@ agent_outputs/
 context/
 input_prompt.txt
 risultato_fit.txt
+*.png
 
