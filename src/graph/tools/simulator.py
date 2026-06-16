@@ -155,8 +155,7 @@ def make_fit_tool(models_list: list[str]):
                         rolling_window : int = 7 
                         ) -> Command:
     
-        """Fit an epidemiological model to incidence data loaded from a CSV file and 
-        compute predicted incidence values using the fitted epidemiological model.
+        """Predict incidence values using the chosen epidemiological model.
 
         Before calling, use get_model_info(model) to discover the right model parameters. You only need to pass the ones you want to override,
         the rest use their defaults.
@@ -166,7 +165,7 @@ def make_fit_tool(models_list: list[str]):
         start_date: Start date for the forecast in YYYY-MM-DD format.
         csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and "incidence" column.
         model_name: Model identifier string. Determines which
-            model spec and parameter schema will be used.
+            model spec and parameter schema will be used. Default is 'SIR'
         model_initial_parameters: Optional per-model initial guesses. Missing fields are
             filled from model defaults. This argument is inferred from get_model_info output, so you can just pass the fields you want to override.
         model_fixed_parameters: Optional per-model fixed parameters. These are not fitted but are used in the simulation.
@@ -311,7 +310,7 @@ def make_model_info_tool(available_models: list[str]):
         Return the available parameters and their defaults for a given model.
         Always call this before fit_model_from_csv to know what you can set.
 
-        model: Model name.
+        model: Model name. Default is 'SIR'
         """
         mod = _load_model_module(model)
         return {
@@ -367,7 +366,7 @@ def csv_writer(runtime: ToolRuntime,
                col_name : Annotated[str, "Name of the column that has to be counted"] = 'ESITO TAMPONE',
                col_value : Annotated[str, "Value of the column to count"] = 'Positivo') -> Command:
     
-    """Create a new csv file with the daily incidence of a given value in a given column, counting from the data in the csv_path file.
+    """Create a new csv file with the daily incidence of a given value in a given column, taking data from the csv_path file.
     
     Args:
     csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and a column with name col_name.
