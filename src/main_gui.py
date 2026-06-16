@@ -254,8 +254,7 @@ async def chat(message, history):
 
                 await asyncio.sleep(0)
             
-
-
+    
     except asyncio.CancelledError:
         # Gradio cancella il task, qui puoi fare cleanup
         return
