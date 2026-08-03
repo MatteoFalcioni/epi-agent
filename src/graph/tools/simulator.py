@@ -29,16 +29,6 @@ REQUIRED_ATTRS = {
 
 
 
-'''def _load_model_module(model: str):
-    """Import models.<MODEL> and validate it exposes the full contract."""
-    mod = importlib.import_module(f"models.{model}", package=__package__)
-    missing = REQUIRED_ATTRS - set(dir(mod))
-    if missing:
-        raise ImportError(f"Model '{model}' is missing: {missing}")
-    return mod'''
-
-
-
 def _load_model_module(model: str):
     """Import models.<MODEL> and validate it exposes the full contract."""
 
@@ -68,26 +58,6 @@ def _merge_with_defaults(defaults: dict, user_params: dict | None) -> dict:
     if invalid:
         raise ValueError(f"Unknown parameters: {invalid}. Valid: {set(defaults)}")
     return {**defaults, **user_params}
-
-
-
-'''def _build_models_schema(available_models: list[str]) -> dict:
-    """
-    Load every model module and collect their PARAMETER_FIELDS + defaults.
-    Returns a nested dict the LLM can read from the docstring.
-    """
-    schema = {}
-    for model_name in available_models:
-        mod = _load_model_module(model_name)
-        schema[model_name] = {
-            field: {
-                "type": typ.__name__,
-                "default": mod.fit_parameters_defaults[field] if field in mod.fit_parameters_defaults else mod.fixed_parameters_defaults[field],
-                "meaning": mod.EXPLAIN_PARAMETERS[field]
-            }
-            for field, typ in mod.PARAMETER_FIELDS.items()
-        }
-    return schema'''
 
 
 
