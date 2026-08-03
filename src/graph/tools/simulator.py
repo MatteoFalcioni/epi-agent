@@ -10,8 +10,8 @@ import json
 
 
 import pandas as pd
-import models
-import metrics
+from . import models
+from . import metrics
 import importlib
 import pkgutil
 
@@ -52,7 +52,7 @@ def _load_model_module(model: str):
     if real_name is None:
         raise ImportError(f"No module found for model '{model}'")
 
-    mod = importlib.import_module(f"models.{real_name}", package=__package__)
+    mod = importlib.import_module(f".models.{real_name}", package=__package__)
 
     missing = REQUIRED_ATTRS - set(dir(mod))
     if missing:
@@ -338,7 +338,7 @@ def make_model_info_tool(available_models: list[str]):
 
 
 def discover_models() -> list[str]:
-    """Trova tutti i moduli nella cartella models/ e restituisce i loro nomi."""
+    """Find all modules in the models/ directory and return their names."""
     return [mod.name
         for mod in pkgutil.iter_modules(models.__path__)
         if not mod.name.startswith("_")  # esclude __init__, _utils, ecc.
