@@ -31,6 +31,9 @@ fit_parameters_defaults = {'beta'     : 0.8,
                            'baseline' : None,
                            'f' : 1e-2/2,
                             'N' : 4e5} # Infer from incidence data.
+                            
+fixed_parameters_defaults = {'f' : 1e-2/2,
+                             'N' : 4e5}
 
 EXPLAIN_PARAMETERS = {'beta'     : 'Infectivity rate (average number of people infected by an infectious person per day).',
                       'mu'       : 'Recovery rate (inverse of the average infectious period in days).',
