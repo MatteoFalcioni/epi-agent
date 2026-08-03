@@ -60,8 +60,8 @@ bounds = ((0.,     np.inf), # beta,
 # Fitting function
 
 def fit_model(incidence_data, metric, 
-              fit_parameters_initial_values = fit_parameters_defaults,
-              fixed_parameters = fixed_parameters_defaults):
+              fit_parameters_initial_values :dict = fit_parameters_defaults,
+              fixed_parameters :dict | None = fixed_parameters_defaults):
 
     # Use defaults if no parameters are provided
 
@@ -123,7 +123,9 @@ def fit_model(incidence_data, metric,
                          'mu'   : fit_mu,
                          'E0'   : fit_E0,
                          'I0'   : fit_I0,
-                         'bl'   : fit_bl}
+                         'bl'   : fit_bl,
+                         'N'    : N,
+                         'f'    : f}
 
     # Begin construction of return.
 
@@ -187,4 +189,4 @@ def incidence(beg, end, parameters):
 
     dt_index = pd.date_range(beg, end, freq = '1D')
 
-    return pd.DataFrame({'sim_incidence' : sim}, index = dt_index)
+    return sim, dt_index
