@@ -361,7 +361,7 @@ with gr.Blocks(title="Epidem-IA", theme=gr.themes.Glass()) as demo:
 
     with gr.Row():
         with gr.Column(scale=1):
-            gr.Image("epidemia_logo2.png", show_label=False)
+            gr.Image("assets/epidemia_logo.png", show_label=False)
 
             gallery = gr.Gallery(
                 label="📊 Images produced",
@@ -378,7 +378,7 @@ with gr.Blocks(title="Epidem-IA", theme=gr.themes.Glass()) as demo:
                 label="Epidem-IA",
                 avatar_images=(
                     None,
-                    "epidemia_chat_png.png",
+                    "assets/epidemia_chat.png",
                 ),
                 height=600
             )
