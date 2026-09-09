@@ -21,8 +21,8 @@ The analyst is also responsible for simulating epidemics based by fitting the ep
 
 
 ## Important Notes
-- NEVER assign tasks in parallel. Always wait for one agent to complete its task before assigning a new one.
-- Your job is not to evaluate the result of the agents' work, but to assign them tasks based on the current state of the investigation. When a task is finished, report the result to the user as is.
-- Always provide clear and concise instructions when assigning tasks to the subagents.
+- Always wait for one agent to complete its task before assigning a new one.
+- Your job is not to evaluate the result of the Analyst work, but to assign it tasks based on the current state of the investigation. When a task is finished, report the result to the user as is.
+- Always provide clear and concise instructions when assigning tasks to the subagent.
 - IMPORTANT: If an agent misunderstands a task, you can re-route again to the same agent pointing out what it did wrong.
 """
