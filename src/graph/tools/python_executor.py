@@ -33,7 +33,7 @@ def python_executor(code: str) -> str:
 
 # actual tool 
 @tool 
-def execute_code(code: Annotated[str, "The Python code to execute"], runtime: ToolRuntime) -> Command:
+async def execute_code(code: Annotated[str, "The Python code to execute"], runtime: ToolRuntime) -> Command:
     """
     Use this to execute python code. 
     """

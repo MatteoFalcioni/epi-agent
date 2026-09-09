@@ -10,8 +10,8 @@ import json
 
 
 import pandas as pd
-import models
-import metrics
+from . import models
+from . import metrics
 import importlib
 import pkgutil
 
@@ -29,16 +29,6 @@ REQUIRED_ATTRS = {
 
 
 
-'''def _load_model_module(model: str):
-    """Import models.<MODEL> and validate it exposes the full contract."""
-    mod = importlib.import_module(f"models.{model}", package=__package__)
-    missing = REQUIRED_ATTRS - set(dir(mod))
-    if missing:
-        raise ImportError(f"Model '{model}' is missing: {missing}")
-    return mod'''
-
-
-
 def _load_model_module(model: str):
     """Import models.<MODEL> and validate it exposes the full contract."""
 
@@ -52,7 +42,7 @@ def _load_model_module(model: str):
     if real_name is None:
         raise ImportError(f"No module found for model '{model}'")
 
-    mod = importlib.import_module(f"models.{real_name}", package=__package__)
+    mod = importlib.import_module(f".models.{real_name}", package=__package__)
 
     missing = REQUIRED_ATTRS - set(dir(mod))
     if missing:
@@ -68,26 +58,6 @@ def _merge_with_defaults(defaults: dict, user_params: dict | None) -> dict:
     if invalid:
         raise ValueError(f"Unknown parameters: {invalid}. Valid: {set(defaults)}")
     return {**defaults, **user_params}
-
-
-
-'''def _build_models_schema(available_models: list[str]) -> dict:
-    """
-    Load every model module and collect their PARAMETER_FIELDS + defaults.
-    Returns a nested dict the LLM can read from the docstring.
-    """
-    schema = {}
-    for model_name in available_models:
-        mod = _load_model_module(model_name)
-        schema[model_name] = {
-            field: {
-                "type": typ.__name__,
-                "default": mod.fit_parameters_defaults[field] if field in mod.fit_parameters_defaults else mod.fixed_parameters_defaults[field],
-                "meaning": mod.EXPLAIN_PARAMETERS[field]
-            }
-            for field, typ in mod.PARAMETER_FIELDS.items()
-        }
-    return schema'''
 
 
 
@@ -155,8 +125,7 @@ def make_fit_tool(models_list: list[str]):
                         rolling_window : int = 7 
                         ) -> Command:
     
-        """Fit an epidemiological model to incidence data loaded from a CSV file and 
-        compute predicted incidence values using the fitted epidemiological model.
+        """Predict incidence values using the chosen epidemiological model.
 
         Before calling, use get_model_info(model) to discover the right model parameters. You only need to pass the ones you want to override,
         the rest use their defaults.
@@ -166,7 +135,7 @@ def make_fit_tool(models_list: list[str]):
         start_date: Start date for the forecast in YYYY-MM-DD format.
         csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and "incidence" column.
         model_name: Model identifier string. Determines which
-            model spec and parameter schema will be used.
+            model spec and parameter schema will be used. Default is 'SIR'
         model_initial_parameters: Optional per-model initial guesses. Missing fields are
             filled from model defaults. This argument is inferred from get_model_info output, so you can just pass the fields you want to override.
         model_fixed_parameters: Optional per-model fixed parameters. These are not fitted but are used in the simulation.
@@ -311,7 +280,7 @@ def make_model_info_tool(available_models: list[str]):
         Return the available parameters and their defaults for a given model.
         Always call this before fit_model_from_csv to know what you can set.
 
-        model: Model name.
+        model: Model name. Default is 'SIR'
         """
         mod = _load_model_module(model)
         return {
@@ -339,7 +308,7 @@ def make_model_info_tool(available_models: list[str]):
 
 
 def discover_models() -> list[str]:
-    """Trova tutti i moduli nella cartella models/ e restituisce i loro nomi."""
+    """Find all modules in the models/ directory and return their names."""
     return [mod.name
         for mod in pkgutil.iter_modules(models.__path__)
         if not mod.name.startswith("_")  # esclude __init__, _utils, ecc.
@@ -367,7 +336,7 @@ def csv_writer(runtime: ToolRuntime,
                col_name : Annotated[str, "Name of the column that has to be counted"] = 'ESITO TAMPONE',
                col_value : Annotated[str, "Value of the column to count"] = 'Positivo') -> Command:
     
-    """Create a new csv file with the daily incidence of a given value in a given column, counting from the data in the csv_path file.
+    """Create a new csv file with the daily incidence of a given value in a given column, taking data from the csv_path file.
     
     Args:
     csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and a column with name col_name.

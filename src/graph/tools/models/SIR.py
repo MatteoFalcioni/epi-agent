@@ -31,6 +31,9 @@ fit_parameters_defaults = {'beta'     : 0.8,
                            'baseline' : None,
                            'f' : 1e-2/2,
                             'N' : 4e5} # Infer from incidence data.
+                            
+fixed_parameters_defaults = {'f' : 1e-2/2,
+                             'N' : 4e5}
 
 EXPLAIN_PARAMETERS = {'beta'     : 'Infectivity rate (average number of people infected by an infectious person per day).',
                       'mu'       : 'Recovery rate (inverse of the average infectious period in days).',
@@ -48,40 +51,48 @@ bounds = ((0.,     np.inf), # beta
 # Fitting function
 
 def fit_model(incidence_data, metric, 
-              fit_parameters : dict = None):
+              fit_parameters_initial_values : dict = fit_parameters_defaults,
+              fixed_parameters : dict | None = fixed_parameters_defaults):
     # Use defaults if no parameters are provided
 
-    if fit_parameters == None:
-        fit_parameters = {}
-
-    fit_parameters = fit_parameters_defaults | fit_parameters
-
-    f = fit_parameters['f']
-
-
-    fit_parameters_defaults['I0']       = incidence_data[0]/f
-    fit_parameters_defaults['baseline'] = 3.
+    if fixed_parameters == None:
+        fixed_parameters = {}
 
     # Right-precedence or between dicts keeps the union of keys,
     # and gives right precedence to values, so that we overwrite
     # parameters only if they are provided.
 
-    
+    fixed_parameters = fixed_parameters_defaults | fixed_parameters
 
     # Extract fixed parameters from dictionary.
 
+    N = fixed_parameters['N'] # Population size
+    f = fixed_parameters['f'] # Detection fraction
 
+    
 
     # By default the following two quantities are inferred, so we should
     # fill the defaults first.
 
+    fit_parameters_defaults['I0']       = incidence_data[0]/f
+    fit_parameters_defaults['baseline'] = 3.
+
+    if fit_parameters_initial_values == None:
+        fit_parameters_initial_values = {}
+    
+    # Right-precedence or between dicts keeps the union of keys,
+    # and gives right precedence to values, so that we overwrite
+    # parameters only if they are provided.
+    
+    fit_parameters_initial_values=fit_parameters_defaults|fit_parameters_initial_values
 
     # Extract fit parameters from dictionary.
-    N = fit_parameters['N']
-    beta0 = fit_parameters['beta']
-    mu0   = fit_parameters['mu']
-    I00   = fit_parameters['I0']
-    bl0   = fit_parameters['baseline']
+
+    beta0 = fit_parameters_initial_values['beta']
+    mu0   = fit_parameters_initial_values['mu']
+    I00   = fit_parameters_initial_values['I0']
+    bl0   = fit_parameters_initial_values['baseline']
+
 
     # Arrange args in arrays for handling by the minimizer.
     x0         = np.array([beta0, mu0, I00, bl0])
@@ -100,7 +111,9 @@ def fit_model(incidence_data, metric,
     fitted_parameters = {'beta' : fit_beta,
                          'mu'   : fit_mu,
                          'I0'   : fit_I0,
-                         'bl'   : fit_bl}
+                         'bl'   : fit_bl,
+                         'N'    : N,
+                         'f'    : f}
 
     # Begin construction of return.
 
@@ -119,6 +132,8 @@ def sir(t, y, beta, mu, N):
     return np.array([- beta * y[0] * y[1] / N, 
                        beta * y[0] * y[1] / N - mu * y[1],
                        mu * y[1]])
+
+
 # Incidence function (for private use)
 def _incidence(x, t_span, f, N):
     beta, mu, I0, bl = x # Respectively beta = infectivity, 
@@ -157,4 +172,5 @@ def incidence(beg, end, parameters):
 
     dt_index = pd.date_range(beg, end, freq = '1D')
 
-    return sim
+
+    return sim, dt_index

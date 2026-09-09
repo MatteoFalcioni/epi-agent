@@ -17,6 +17,18 @@ from scipy.integrate import solve_ivp
 
 name = 'SEIR'
 
+
+PARAMETER_FIELDS = {'beta'     : float,
+                    'mu'       : float,
+                    'gamma'    : float,
+                    'I0'       : float,
+                    'E0'       : float,
+                    'baseline' : float,
+                    'f'        : float,
+                    'N'        : int}
+                    
+                    
+                    
 fit_parameters_defaults = {'beta'     : 0.8,
                            'mu'       : 0.2,
                            'gamma'    : 0.2,
@@ -26,6 +38,17 @@ fit_parameters_defaults = {'beta'     : 0.8,
 fixed_parameters_defaults = {'f' : 1e-2/2,
                              'N' : 4e5}
 
+
+EXPLAIN_PARAMETERS = {'beta'     : 'Infectivity rate (average number of people infected by an infectious person per day).',
+                      'mu'       : 'Recovery rate (inverse of the average infectious period in days).',
+                      'gamma'    : 'Symptoms development rate (inverse of the average incubation period in days).',
+                      'I0'       : 'Initial number of infectious people at the start of the simulation.',
+                      'E0'       : 'Initial number of exposed people at the start of the simulation.',
+                      'baseline' : 'Baseline number of daily infections (accounts for external factors and noise).',
+                      'f' : 'Detection fraction (proportion of actual infections that are detected and reported).',
+                      'N' : 'Total population size (number of individuals in the population being modeled).'}
+                      
+                      
 # Fitting bounds for the parameters
 bounds = ((0.,     np.inf), # beta,
           (0.,     np.inf), # mu,
@@ -37,8 +60,8 @@ bounds = ((0.,     np.inf), # beta,
 # Fitting function
 
 def fit_model(incidence_data, metric, 
-              fit_parameters_initial_values = fit_parameters_defaults,
-              fixed_parameters = fixed_parameters_defaults):
+              fit_parameters_initial_values :dict = fit_parameters_defaults,
+              fixed_parameters :dict | None = fixed_parameters_defaults):
 
     # Use defaults if no parameters are provided
 
@@ -100,7 +123,9 @@ def fit_model(incidence_data, metric,
                          'mu'   : fit_mu,
                          'E0'   : fit_E0,
                          'I0'   : fit_I0,
-                         'bl'   : fit_bl}
+                         'bl'   : fit_bl,
+                         'N'    : N,
+                         'f'    : f}
 
     # Begin construction of return.
 
@@ -164,4 +189,4 @@ def incidence(beg, end, parameters):
 
     dt_index = pd.date_range(beg, end, freq = '1D')
 
-    return pd.DataFrame({'sim_incidence' : sim}, index = dt_index)
+    return sim, dt_index

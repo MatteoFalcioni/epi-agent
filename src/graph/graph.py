@@ -11,9 +11,9 @@ import aiosqlite
 
 from .utils import get_ollama_model
 from .state import MyState
-from .tools.handoffs import assign_to_analyst, assign_to_simulator
+from .tools.handoffs import assign_to_analyst
 from .tools.python_executor import execute_code
-from .tools.simulator import (
+from .tools.analyst import (
     discover_models,
     csv_writer,
     make_fit_tool,
@@ -123,7 +123,7 @@ def make_graph(
         "supervisor", supervisor_agent
     )  # , destinations=("data_analyst", "simulator", END)
     builder.add_node("analyst", analyst_agent_node)
-    #builder.add_node("simulator", simulator_agent_node)
+
     builder.add_edge(
         START, "supervisor"
     )  # since we have Command(goto=...) everywhere, we do not need other edges.
