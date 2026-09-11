@@ -218,8 +218,8 @@ def make_fit_tool(models_list: list[str]):
                                         fit['fitted_parameters'])
         
         fit_parameters = {k: (float(v) if hasattr(v, 'item') else v) for k, v in fit['fitted_parameters'].items()}
-        predicted_incidence_list = [float(value) for value in sim_incidence[14:]]
-        incidence_dates = [str(date.date()) for date in dt_index[14:]]
+        predicted_incidence_list = [float(value) for value in sim_incidence]
+        incidence_dates = [str(date.date()) for date in dt_index]
 
         result_dict = {
 #            "timestamp": datetime.now(timezone.utc).isoformat(),
