@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pyexpat import model
 from typing import TypedDict
 from langchain_core.tools import tool
 from langgraph.types import Command
@@ -97,7 +98,7 @@ def _build_models_schema(available_models: list[str]) -> tuple[dict, dict]:
     return fit_schema, fixed_schema
 
 
-def make_fit_tool(models_list: list[str]):
+def make_fit_tools(models_list: list[str]):
     """
     Build and return a LangGraph @tool with:
       - model: Literal[...] auto-built from available_models
@@ -253,15 +254,85 @@ def make_fit_tool(models_list: list[str]):
     {fixed_schema_json}
     """
     
-    fit_and_forecast.__doc__ = (
-    fit_and_forecast.__doc__ + docstring_suffix)
-    # Inject the real schema into the docstring (done once at startup)
-    '''fit_and_forecast.__doc__ = fit_and_forecast.__doc__.format(
-        models=available_models,
-        schema=schema_json
-    )'''
+    fit_and_forecast.__doc__ = (fit_and_forecast.__doc__ + docstring_suffix)
 
-    return fit_and_forecast
+
+    @tool
+    def incidence(runtime: ToolRuntime,
+                  start_date : str,
+                  end_date : str,
+                model_name : Annotated[str, "Name of the epidemiological model to use."] = "SIR",
+                 parameters : dict | None = None):
+        """Simulate incidence values using the chosen epidemiological model and given parameters.
+        
+                Before calling, use get_model_info(model) to discover the right model parameters. You only need to pass the ones you want to override,
+                the rest use their defaults.
+        
+                Args:
+                runtime: Tool runtime context (used for message routing and call tracking).
+                start_date: Start date for the forecast in YYYY-MM-DD format.
+                end_date: End date for the forecast in YYYY-MM-DD format.
+                model_name: Model identifier string. Determines which
+                    model spec and parameter schema will be used. Default is 'SIR'
+                parameters: Optional per-model parameters. Missing fields are
+                    filled from model defaults. This argument is inferred from get_model_info output, so you can just pass the fields you want to override.
+        
+            Returns:
+                Command: Result command with two updates:
+                    - "messages": ToolMessage with JSON-serialized result_dict.
+                    - "simulations": list containing result_dict for state propagation.
+            """
+
+        try:
+            model = _load_model_module(model_name)
+        except KeyError:
+            return {'Message' : f'Error, no model named {model_name} available in the models/ folder.'}
+
+        start_date = pd.to_datetime(start_date)
+        end_date = pd.to_datetime(end_date)
+
+        parameters = _merge_with_defaults(model.fit_parameters_defaults, parameters)
+
+        for par in parameters.values():
+            if par is None:
+                return Command(
+                            update={
+                                "messages": [ToolMessage(content='Error: A required parameter is equal to None. Please ' \
+                                'provide a value for every parameter.', tool_call_id=runtime.tool_call_id)]
+                            }
+                        )
+
+        
+        sim_incidence, dt_index = model.incidence(start_date, end_date, parameters)
+
+        predicted_incidence_list = [float(value) for value in sim_incidence]
+        incidence_dates = [str(date.date()) for date in dt_index]
+
+        result_dict = {
+        #            "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "model": model_name,
+                    "predicted_incidence": predicted_incidence_list,
+                    "predicted incidence dates" : incidence_dates
+                }
+        
+        
+        return Command(
+                    update={
+                        "messages": [ToolMessage(content=json.dumps(result_dict), tool_call_id=runtime.tool_call_id)],
+                        "simulations": [result_dict],
+                    }
+                )
+
+
+    docstring_suffix = f"""\nmodel_name must be one of: {models_list}
+    
+        parameters per model:
+        {fit_schema_json}"""
+
+    incidence.__doc__ = (incidence.__doc__ + docstring_suffix)
+    
+
+    return fit_and_forecast, incidence
 
 
 
