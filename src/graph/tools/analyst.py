@@ -261,9 +261,12 @@ def make_fit_tools(models_list: list[str]):
 
     @tool
     def incidence(runtime: ToolRuntime,
-                  start_date : str,
+                  csv_path: Annotated[str, "Path to the CSV file containing the full data range of incidence data before start date."],
+                start_date : str,
                   end_date : str,
+                  col_name : Annotated[str, "Name of the column in the CSV file containing incidence data."] = "incidence",
                 model_name : Annotated[str, "Name of the epidemiological model to use."] = "SIR",
+                rolling_window : int = 7 ,
                  parameters : dict | None = None):
         """Simulate incidence values using the chosen epidemiological model and given parameters.
         
@@ -272,10 +275,13 @@ def make_fit_tools(models_list: list[str]):
         
                 Args:
                 runtime: Tool runtime context (used for message routing and call tracking).
+                csv_path: Path to the CSV file containing the full data range of incidence data before start date, with datetime index and "incidence" column.
                 start_date: Start date for the forecast in YYYY-MM-DD format.
                 end_date: End date for the forecast in YYYY-MM-DD format.
+                col_name: Name of the column in the CSV file containing incidence data (default: "incidence").
                 model_name: Model identifier string. Determines which
                     model spec and parameter schema will be used. Default is 'SIR'
+                rolling_window: Window size for rolling average smoothing (default: 7 days).
                 parameters: Optional per-model parameters. Missing fields are
                     filled from model defaults. This argument is inferred from get_model_info output, so you can just pass the fields you want to override.
         
@@ -285,13 +291,48 @@ def make_fit_tools(models_list: list[str]):
                     - "simulations": list containing result_dict for state propagation.
             """
 
+        # Load dataset.
+                
+        df = pd.read_csv(csv_path, index_col = 0, parse_dates = True)
+        
+        # Cast start_date to datetime. 
+        start_date = pd.to_datetime(start_date)
+        end_date = pd.to_datetime(end_date)
+        
+        # Check that start and end of fit/simulation are within bounds.
+        if (start_date <= df.index.min()) or (start_date  >= df.index.max()):
+            return {'Message' : f'Error, start date out of data range.'}
+            
+        # Compute overall mean and standard deviation to compute threshold.
+        global_mean = df[col_name].to_numpy().mean()
+        global_std  = df[col_name].to_numpy().std()
+        #global_std = 0
+
+        threshold = global_mean + global_std
+        
+        df['smooth'] = df[col_name].rolling(rolling_window, 
+                                    center = False, 
+                                    min_periods = 1).mean()
+        
+        # Check if the user asked for prediction during an outbreak.
+        if df.loc[start_date].smooth < threshold:
+            return {'Message' : f'No epidemic increase in the incidence detected at required time.'}
+
+
+        df = df[df.index <= start_date]
+        # If we are here it means an epidemic is taking place.
+        # We use as the start of the fitting procedure a point 2 weeks before
+        # the crossing of the alert level.
+        closest_xing = df[(df.smooth >= threshold) 
+                        & (df.smooth.shift(1) < threshold)].index[-1]
+        fit_begin = closest_xing - pd.Timedelta(days = 14) 
+        
         try:
             model = _load_model_module(model_name)
         except KeyError:
             return {'Message' : f'Error, no model named {model_name} available in the models/ folder.'}
 
-        start_date = pd.to_datetime(start_date)
-        end_date = pd.to_datetime(end_date)
+
 
         parameters = _merge_with_defaults(model.fit_parameters_defaults, parameters)
 
@@ -305,7 +346,7 @@ def make_fit_tools(models_list: list[str]):
                         )
 
         
-        sim_incidence, dt_index = model.incidence(start_date, end_date, parameters)
+        sim_incidence, dt_index = model.incidence(fit_begin, end_date, parameters)
 
         predicted_incidence_list = [float(value) for value in sim_incidence]
         incidence_dates = [str(date.date()) for date in dt_index]
