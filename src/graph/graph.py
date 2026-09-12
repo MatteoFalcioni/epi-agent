@@ -16,7 +16,7 @@ from .tools.python_executor import execute_code
 from .tools.analyst import (
     discover_models,
     csv_writer,
-    make_fit_tool,
+    make_fit_tools,
     make_model_info_tool
 )
 from .prompts.analyst import analyst_prompt
@@ -67,10 +67,10 @@ def make_graph(
     AVAILABLE_MODELS = discover_models()
 
     # Both tools are built ONCE — docstrings are static from here on
-    fit_and_forecast = make_fit_tool(AVAILABLE_MODELS)
+    fit_and_forecast, incidence = make_fit_tools(AVAILABLE_MODELS)
     get_model_info = make_model_info_tool(AVAILABLE_MODELS)
 
-    tools = [execute_code, csv_writer, get_model_info, fit_and_forecast]
+    tools = [execute_code, csv_writer, get_model_info, fit_and_forecast, incidence]
 
     analyst_agent = create_agent(
         model=llm,
