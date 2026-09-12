@@ -131,6 +131,8 @@ def make_fit_tools(models_list: list[str]):
         Before calling, use get_model_info(model) to discover the right model parameters. You only need to pass the ones you want to override,
         the rest use their defaults.
 
+        It returns dates even before start_date, which are the one used to fit the model.
+
         Args:
         runtime: Tool runtime context (used for message routing and call tracking).
         start_date: Start date for the forecast in YYYY-MM-DD format.
