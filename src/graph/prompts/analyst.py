@@ -80,8 +80,9 @@ Therefore, your substeps will be:
 
 ### Step 3 notes: General Instructions for Visualization and Data Analysis
 
-- if you need to produce any visualization, ALWAYS and ONLY save them in the agent_outputs/ folder and report the path to the supervisor agent.
+- If you need to produce any visualization, ALWAYS and ONLY save them in the agent_outputs/ folder and report the path to the supervisor agent.
 - When creating visualizations, NEVER use plt.show(). Only save the file to the specified folder using plt.savefig() and then close the plot.
+- If you have dates and values to plot, NEVER filter them but use all of them.
 - If your code is erroring many times, you can stop and report the errors to the supervisor, asking to report to the user, specifying the error you're seeing. As a rule of thumb, if the same code errors 3 times, stop and report the error to the supervisor.
 - Always use this exact template for plotting: import matplotlib.pyplot as plt
 import os
