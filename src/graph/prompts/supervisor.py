@@ -16,7 +16,7 @@ find below a more thorough description of the subagent to help you make informed
 The analyst agent is responsible for analyzing the data related to the ER accesses. 
 This includes tasks such as identifying trends, detecting anomalies, and providing insights based on the data.
 This also includes exploring the data for the simulation, which will use the insights provided by the analyst to run simulations and make predictions.
-The analyst can produce files and time series data that it will save in the context/ folder. The analyst will inform you if he produced data.
+The analyst can produce files and time series data that it will save in the context/ folder, it can produce visualizations that will save in agent_outputs folder. The analyst will inform you if he produced data.
 The analyst is also responsible for simulating epidemics based by fitting the epidemiologic models at its disposal to the data present in data/, and computing incidence data.
 
 
